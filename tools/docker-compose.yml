@@ -1,0 +1,50 @@
+name: questlog
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-questlog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-questlog}
+      POSTGRES_DB: ${POSTGRES_DB:-questlog}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ../code/backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-questlog}:${POSTGRES_PASSWORD:-questlog}@db:5432/${POSTGRES_DB:-questlog}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Jedyna usługa wystawiona na hosta; Caddy serwuje front i przekazuje /api do backendu.
+  frontend:
+    build: ../code/frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+  # Testy backendu: docker compose --profile test run --rm tests
+  tests:
+    profiles: ["test"]
+    build: ../code/backend
+    entrypoint: ["pytest", "-q"]
+    environment:
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-questlog}:${POSTGRES_PASSWORD:-questlog}@db:5432/questlog_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
