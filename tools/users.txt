@@ -1,0 +1,16 @@
+QuestLog – użytkownicy testowi (dane z tools/seed.sql)
+Logowanie: login (lub e-mail) + hasło. Tylko do środowiska deweloperskiego.
+
+login     hasło         e-mail
+ada       Ada!2026      ada@questlog.local
+linus     Linus!2026    linus@questlog.local
+grace     Grace!2026    grace@questlog.local
+kasia     Kasia!2026    kasia@questlog.local
+marek     Marek!2026    marek@questlog.local
+ola       Ola!2026      ola@questlog.local
+tomek     Tomek!2026    tomek@questlog.local
+zosia     Zosia!2026    zosia@questlog.local
+piotr     Piotr!2026    piotr@questlog.local
+ewa       Ewa!2026      ewa@questlog.local
+bartek    Bartek!2026   bartek@questlog.local
+magda     Magda!2026    magda@questlog.local

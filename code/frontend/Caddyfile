@@ -1,0 +1,27 @@
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	encode zstd gzip
+
+	# API: przekazujemy do backendu (Flask) w sieci Dockera.
+	handle /api/* {
+		reverse_proxy backend:5000
+	}
+
+	# Zasoby z hashem w nazwie: długi cache, brak pliku = 404 (bez fallbacku SPA).
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=604800, immutable"
+		file_server
+	}
+
+	# Aplikacja React: fallback SPA na index.html.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
