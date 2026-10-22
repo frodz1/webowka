@@ -1,0 +1,22 @@
+# Wariant cloud: bez lokalnej bazy (DATABASE_URL wskazuje na zarządzanego Postgresa)
+# i bez TLS-a (certyfikat stoi na load balancerze).
+#   docker compose -f docker-compose.cloud.yml up -d --build
+name: questlog
+
+services:
+  backend:
+    build: ../code/backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?ustaw DATABASE_URL w tools/.env}
+      SECRET_KEY: ${SECRET_KEY:?ten sam na wszystkich instancjach, inaczej tokeny nie przejdą}
+      # 2 workery x pula 10 = 20 połączeń na instancję; pilnuj limitu bazy.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+
+  frontend:
+    build: ../code/frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"

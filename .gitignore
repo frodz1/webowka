@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
+.neon
+node_modules/
+.env.local
