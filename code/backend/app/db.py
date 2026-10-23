@@ -19,6 +19,8 @@ def get_pool():
             min_size=1,
             max_size=10,
             kwargs={"row_factory": dict_row},
+            # Neon rozłącza bezczynne połączenia; bez tego pula wydaje martwe.
+            check=ConnectionPool.check_connection,
             open=True,
         )
     return _pool
