@@ -1,5 +1,7 @@
 # QuestLog
 
+[![CI/CD](https://github.com/frodz1/webowka/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/frodz1/webowka/actions/workflows/ci-cd.yml)
+
 Tablica znalezisk (lekki klon Reddita i Wykopu): użytkownicy dodają linki i krótkie teksty, głosują w górę/w dół, a pod każdym wpisem toczy się dyskusja w drzewku komentarzy.
 
 - **Front-end:** React (Vite)
