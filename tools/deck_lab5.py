@@ -244,7 +244,7 @@ c.showPage()
 
 # ------------------------------------------------------ 6. rolling deploy
 y = slide("Rolling deploy", "jedna maszyna naraz, druga trzyma ruch")
-chain = [("git reset --hard", "dokładnie ten commit, który przeszedł CI", AMBER), ("compose up --build", "przebudowa obrazów na maszynie", LILAC), ("curl /api/health", "15 prób co 2 s", ACCENT), ("następna maszyna", "dopiero po zielonym health checku", TEAL)]
+chain = [("git reset --hard", "dokładnie ten commit, który przeszedł CI", AMBER), ("compose up --build", "przebudowa obrazów na maszynie", LILAC), ("curl /api/health", "do 30 prób co 2 s", ACCENT), ("następna maszyna", "dopiero po zielonym health checku", TEAL)]
 for i, (top, bot, col) in enumerate(chain):
     x = 48 + i * 162
     box(x, y - 74, 146, 82, white, EDGE)

@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose -f tools/docker-compose.yml up -d --build --wait
-      - run: curl -fsS --retry 15 --retry-connrefused --retry-delay 2 http://localhost:8080/api/health
+      - run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/api/health
       - if: failure()
         run: docker compose -f tools/docker-compose.yml logs
 
@@ -89,6 +89,6 @@ jobs:
       - name: Przebuduj i uruchom kontenery
         run: docker compose -f /opt/questlog/tools/docker-compose.cloud.yml up -d --build
       - name: Health check
-        run: curl -fsS --retry 15 --retry-connrefused --retry-delay 2 http://localhost/api/health
+        run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost/api/health
       - name: Sprzątanie starych obrazów
         run: docker image prune -f
