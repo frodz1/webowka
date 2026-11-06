@@ -83,9 +83,25 @@ jobs:
       group: deploy-${{ matrix.host }}
       cancel-in-progress: false
     steps:
-      # Bez checkout: pracujemy na /opt/questlog, gdzie leży tools/.env (poza gitem).
+      # Bez checkout: pracujemy na /opt/questlog (tools/.env jest poza gitem).
       - name: Pobierz wersję z main
         run: cd /opt/questlog && git fetch origin main && git reset --hard "$GITHUB_SHA"
+      # Sekrety z environmentu production trafiają do tools/.env (prawa 600).
+      # Podmieniamy tylko te dwa klucze; resztę (np. WEB_CONCURRENCY) zostawiamy.
+      - name: Zapisz sekrety do tools/.env
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          : "${DATABASE_URL:?brak sekretu DATABASE_URL}" "${SECRET_KEY:?brak sekretu SECRET_KEY}"
+          case "$DATABASE_URL$SECRET_KEY" in *\'*) echo "sekret zawiera apostrof"; exit 1;; esac
+          umask 077
+          f=/opt/questlog/tools/.env
+          cp -p "$f" "$f.bak"
+          { grep -vE '^(DATABASE_URL|SECRET_KEY)=' "$f" || true
+            printf "DATABASE_URL='%s'\nSECRET_KEY='%s'\n" "$DATABASE_URL" "$SECRET_KEY"
+          } > "$f.new"
+          mv "$f.new" "$f"
       - name: Przebuduj i uruchom kontenery
         run: docker compose -f /opt/questlog/tools/docker-compose.cloud.yml up -d --build
       - name: Health check

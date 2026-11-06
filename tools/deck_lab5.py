@@ -1,4 +1,6 @@
 """Generator prezentacji Lab5-Questlog.pdf (format i paleta jak w QuestLog.pdf z L1)."""
+import os
+
 from reportlab.lib.colors import HexColor, white
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -220,18 +222,28 @@ bullets(y, [
 ], ACCENT)
 c.showPage()
 
+# ------------------------------------------------------ 4b. zrzut z GitHuba
+y = slide("Pierwszy przebieg na GitHubie", "pull request #7  ·  wymagane checki zielone")
+IW = 520
+IH = IW * 902 / 2004
+ix, iy = (W - IW) / 2, 70
+box(ix - 6, iy - 6, IW + 12, IH + 12, white, EDGE)
+c.drawImage(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lab5_pr_checks.png"), ix, iy, IW, IH)
+text(W / 2, 46, "backend 22 s  ·  frontend 11 s  ·  smoke 29 s  ·  deploy pominięty na PR-ze, bo działa tylko po merge'u do main", 8.5, "R", SLATE, "c")
+c.showPage()
+
 # ------------------------------------------------------ 5. dlaczego self-hosted
 y = slide("Ciągłe wdrażanie", "dlaczego self-hosted runner")
 box(48, y - 110, 300, 118, white, EDGE)
 text(66, y - 18, "SSH z GitHuba", 15, "B", SLATE)
 yy = y - 44
-for r in ["port 22 otwarty dla puli adresów GitHuba", "klucz SSH w sekretach repozytorium", "łamie regułę nsg-app z L3"]:
+for r in ["port 22 otwarty dla puli adresów GitHuba", "klucz SSH jako dodatkowy sekret do utrzymania", "łamie regułę nsg-app z L3"]:
     text(66, yy, "·  " + r, 10, "R", SLATE)
     yy -= 18
 box(372, y - 110, 300, 118, white, TEAL, lw=1.6)
 text(390, y - 18, "Runner na VM", 15, "B", TEAL)
 yy = y - 44
-for r in ["łączy się z GitHubem wychodząco (443)", "żadnych nowych reguł w sieci", "sekrety zostają w .env na maszynie"]:
+for r in ["łączy się z GitHubem wychodząco (443)", "żadnych nowych reguł w sieci", "sekrety z GitHuba zapisywane do .env przy deployu"]:
     text(390, yy, "·  " + r, 10, "R", SLATE)
     yy -= 18
 y -= 134
@@ -269,7 +281,7 @@ rows = [
     ("Ruleset na main", "zmiany tylko przez PR, merge wymaga zielonych backend, frontend i smoke", ACCENT),
     ("Environment production", "wdrożenie możliwe wyłącznie z gałęzi main", TEAL),
     ("PR z forków", "wymagają zatwierdzenia — obcy kod nie trafi na nasze runnery", AMBER),
-    ("Minimalne uprawnienia", "token workflow tylko do odczytu, brak sekretów w GitHubie", LILAC),
+    ("Minimalne uprawnienia", "token workflow tylko do odczytu; sekrety tylko w environment production", LILAC),
 ]
 for name, how, col in rows:
     box(48, y - 46, W - 96, 54, white, EDGE)
