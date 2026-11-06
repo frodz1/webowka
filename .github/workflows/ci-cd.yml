@@ -97,7 +97,6 @@ jobs:
           case "$DATABASE_URL$SECRET_KEY" in *\'*) echo "sekret zawiera apostrof"; exit 1;; esac
           umask 077
           f=/opt/questlog/tools/.env
-          cp -p "$f" "$f.bak"
           { grep -vE '^(DATABASE_URL|SECRET_KEY)=' "$f" || true
             printf "DATABASE_URL='%s'\nSECRET_KEY='%s'\n" "$DATABASE_URL" "$SECRET_KEY"
           } > "$f.new"
