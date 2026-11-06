@@ -91,3 +91,38 @@ npm run dev     # http://localhost:5173
 | GET | `/api/tags` | popularne tagi |
 
 Tokeny przekazujemy nagłówkiem `Authorization: Bearer <token>`.
+
+## CI/CD (GitHub Actions)
+
+Pipeline: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
+
+| Job | Kiedy | Co robi |
+|-----|-------|---------|
+| `backend` | każdy PR i push na `main` | `pytest` na PostgreSQL 16 (kontener usługi) |
+| `frontend` | każdy PR i push na `main` | `npm ci` + `npm run build` |
+| `smoke` | każdy PR i push na `main` | `docker compose up --wait` całego stacku + `curl /api/health` |
+| `deploy (app1)` → `deploy (app2)` | push na `main`, gdy CI jest zielone | rolling: `git reset --hard <sha>`, `compose up -d --build`, health check; padnie app1 → app2 zostaje na starej wersji |
+
+Rollback: `git revert` na `main` – pipeline wdroży poprzednią wersję.
+
+Deploy wykonują **self-hosted runnery** na maszynach (łączą się z GitHubem wychodząco, więc port 22 zostaje otwarty tylko dla jednego IP). Sekrety (`DATABASE_URL`, `SECRET_KEY`) zostają w `/opt/questlog/tools/.env` na VM – nie ma ich w GitHubie.
+
+### Jednorazowa konfiguracja runnera (na każdej VM, `--name`/`--labels` = `app1` lub `app2`)
+
+```bash
+sudo useradd -m -G docker gha && sudo chown -R gha /opt/questlog
+sudo -iu gha bash -c '
+  mkdir runner && cd runner
+  V=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | grep -oP "\"tag_name\": \"v\K[^\"]+")
+  curl -sL https://github.com/actions/runner/releases/download/v$V/actions-runner-linux-arm64-$V.tar.gz | tar xz
+  ./config.sh --url https://github.com/frodz1/webowka --token <TOKEN> --name app1 --labels app1 --unattended'
+cd /home/gha/runner && sudo ./svc.sh install gha && sudo ./svc.sh start
+```
+
+Token: Settings → Actions → Runners → New self-hosted runner (albo `gh api -X POST repos/frodz1/webowka/actions/runners/registration-token -q .token`).
+
+### Ustawienia repozytorium
+
+- Actions → General → Fork pull request workflows: **Require approval for all outside collaborators** (repo jest publiczne – cudzy PR nie może odpalić kodu na naszych VM).
+- Environments → `production`: wdrożenia tylko z gałęzi `main`.
+- Rules → ruleset `main`: wymagany PR i zielone checki `backend`, `frontend`, `smoke`.
