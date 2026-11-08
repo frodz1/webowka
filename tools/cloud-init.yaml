@@ -16,5 +16,6 @@ runcmd:
     DATABASE_URL=postgresql://USER:HASLO@HOST/questlog?sslmode=require
     SECRET_KEY=PODMIEN-NA-DLUGI-LOSOWY
     ENV
-  - docker compose -f /opt/questlog/tools/docker-compose.cloud.yml up -d --build
+  # Kontenery uruchamia pipeline (GitHub Actions: pobiera obrazy z GHCR i zapisuje IMAGE_TAG w .env).
+  # Zarejestruj runner tej maszyny (patrz tools/README.md, sekcja CI/CD) i wywołaj deploy.
   - echo "CLOUD-INIT OK" > /var/log/questlog-ready

@@ -138,7 +138,7 @@ c.showPage()
 y = slide("Wymagania zadania", "co było do zrobienia")
 rows = [
     ("Projekt procesu CI/CD", "Jeden pipeline w GitHub Actions: CI na każdym PR, CD po merge'u do main", ACCENT),
-    ("Automatyczna weryfikacja", "Testy API na PostgreSQL 16, build frontu, smoke test całego stacku w Dockerze", TEAL),
+    ("Automatyczna weryfikacja", "Testy API na PostgreSQL 16, build frontu, build obrazów i smoke test w Dockerze", TEAL),
     ("Automatyczne wdrożenie", "Rolling deploy na app1 i app2 z health checkiem po każdej maszynie", AMBER),
     ("Prezentacja implementacji", "Ten deck oraz przebieg na żywo w zakładce Actions repozytorium", LILAC),
 ]
@@ -164,7 +164,7 @@ c.setStrokeColor(LILAC)
 c.setLineWidth(1.4)
 c.line(180, 161, 180, 271)
 c.line(370, 161, 370, 271)
-for by, name, sub in ((250, "backend", "pytest + Postgres 16"), (195, "frontend", "npm ci + vite build"), (140, "smoke", "compose up + /api/health")):
+for by, name, sub in ((250, "backend", "pytest + Postgres 16"), (195, "frontend", "npm ci + vite build"), (140, "smoke", "build + health + GHCR")):
     box(198, by, 150, 42, white, HexColor("#cfc3ef"))
     text(273, by + 25, name, 10.5, "B", INK, "c")
     text(273, by + 10, sub, 7.5, "R", SLATE, "c")
@@ -205,7 +205,7 @@ y = slide("Ciągła integracja", "co sprawdzamy na każdym PR")
 cards = [
     ("backend", "11 testów API na prawdziwym PostgreSQL 16 uruchomionym jako kontener usługi.", ACCENT),
     ("frontend", "npm ci + vite build: zależności z lockfile'a i kompilacja całej aplikacji React.", LILAC),
-    ("smoke", "docker compose up --wait całego stacku i zapytanie przez Caddy do /api/health.", TEAL),
+    ("smoke", "Buduje obrazy, uruchamia stack i pyta Caddy o /api/health. Na main wypycha obrazy do GHCR.", TEAL),
 ]
 for i, (name, desc, col) in enumerate(cards):
     x = 48 + i * 212
@@ -218,7 +218,7 @@ y -= 136
 bullets(y, [
     "Joby idą równolegle na maszynach GitHuba; cache pip i npm skraca kolejne przebiegi.",
     "Nowy commit w PR anuluje poprzedni przebieg (concurrency), więc nie czekamy na nieaktualne wyniki.",
-    "Smoke test buduje te same Dockerfile'e, które trafiają na produkcję — błąd w obrazie wychodzi przed merge'em.",
+    "Maszyny uruchamiają dokładnie ten obraz, który przeszedł smoke test (tag = SHA commita), bez ponownego budowania.",
 ], ACCENT)
 c.showPage()
 
@@ -256,7 +256,7 @@ c.showPage()
 
 # ------------------------------------------------------ 6. rolling deploy
 y = slide("Rolling deploy", "jedna maszyna naraz, druga trzyma ruch")
-chain = [("git reset --hard", "dokładnie ten commit, który przeszedł CI", AMBER), ("compose up --build", "przebudowa obrazów na maszynie", LILAC), ("curl /api/health", "do 30 prób co 2 s", ACCENT), ("następna maszyna", "dopiero po zielonym health checku", TEAL)]
+chain = [("git reset --hard", "dokładnie ten commit, który przeszedł CI", AMBER), ("compose pull + up", "obrazy z GHCR, bez budowania na maszynie", LILAC), ("curl /api/health", "do 30 prób co 2 s", ACCENT), ("następna maszyna", "dopiero po zielonym health checku", TEAL)]
 for i, (top, bot, col) in enumerate(chain):
     x = 48 + i * 162
     box(x, y - 74, 146, 82, white, EDGE)

@@ -100,12 +100,18 @@ Pipeline: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
 |-----|-------|---------|
 | `backend` | każdy PR i push na `main` | `pytest` na PostgreSQL 16 (kontener usługi) |
 | `frontend` | każdy PR i push na `main` | `npm ci` + `npm run build` |
-| `smoke` | każdy PR i push na `main` | `docker compose up --wait` całego stacku + `curl /api/health` |
-| `deploy (app1)` → `deploy (app2)` | push na `main`, gdy CI jest zielone | rolling: `git reset --hard <sha>`, `compose up -d --build`, health check; padnie app1 → app2 zostaje na starej wersji |
+| `smoke` | każdy PR i push na `main` | buduje obrazy `backend` i `frontend` (runner arm64), uruchamia je z Postgresem i sprawdza `curl /api/health`; na `main` po zielonym teście wypycha **te same** obrazy do GHCR |
+| `deploy (app1)` → `deploy (app2)` | push na `main`, gdy CI jest zielone | rolling: `git reset --hard <sha>`, zapis `.env`, `compose pull` + `up -d` (obrazy z GHCR, **bez budowania na maszynie**), health check; padnie app1 → app2 zostaje na starej wersji |
 
-Rollback: `git revert` na `main` – pipeline wdroży poprzednią wersję.
+Rollback: `git revert` na `main` – pipeline zbuduje i wdroży poprzednią wersję. Szybciej, bez budowania: na maszynie ustaw w `tools/.env` `IMAGE_TAG=<sha wcześniejszego commita>` i wykonaj `docker compose -f docker-compose.cloud.yml pull && docker compose -f docker-compose.cloud.yml up -d` (obrazy z tagiem SHA zostają w rejestrze).
 
 Deploy wykonują **self-hosted runnery** na maszynach (łączą się z GitHubem wychodząco, więc port 22 zostaje otwarty tylko dla jednego IP). Sekrety (`DATABASE_URL`, `SECRET_KEY`) są przechowywane w GitHubie jako *environment secrets* środowiska `production` (Settings → Environments → production) i dostępne tylko dla jobu `deploy` z gałęzi `main`. Przy każdym wdrożeniu job zapisuje je do `/opt/questlog/tools/.env` (prawa 600), więc `SECRET_KEY` jest zawsze identyczny na obu maszynach. Rotacja: `gh secret set SECRET_KEY --env production`, potem redeploy. Pozostałe wpisy w `.env` (np. `WEB_CONCURRENCY`) zostają nietknięte. Kopii zapasowej `.env` nie robimy – źródłem prawdy są sekrety w GitHubie.
+
+### Rejestr obrazów (GHCR)
+
+Obrazy: `ghcr.io/frodz1/questlog-backend` i `ghcr.io/frodz1/questlog-frontend`, tag = pełny SHA commita (niezmienny, ślad do kodu). Budowane są raz, w jobie `smoke`, na runnerze `ubuntu-24.04-arm`, bo maszyny w OCI są arm64. Publikuje je tylko push na `main` (tokenem joba, bez dodatkowych sekretów); PR-y niczego nie wypychają. Maszyny logują się do GHCR tokenem joba `deploy` (`packages: read`) tylko na czas pobrania. Etykieta `org.opencontainers.image.source` w Dockerfile'ach wiąże pakiet z repozytorium, dzięki czemu `GITHUB_TOKEN` może go pobrać.
+
+Lokalnie nic się nie zmienia: `docker compose up -d --build` buduje te same obrazy z tagiem `dev`. Nowe pakiety w GHCR są domyślnie prywatne; jeśli `compose pull` zwróci `denied`, w Packages → pakiet → *Package settings* dodaj repozytorium `webowka` w „Manage Actions access” (rola Read) albo ustaw pakiet jako publiczny.
 
 ### Jednorazowa konfiguracja runnera (na każdej VM, `--name`/`--labels` = `app1` lub `app2`)
 

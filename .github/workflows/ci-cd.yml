@@ -1,5 +1,6 @@
-# CI: testy backendu, build frontu i smoke test całego stacku na każdym PR i pushu na main.
-# CD: po zielonym CI na main wdrożenie rolling app1 -> app2 przez self-hosted runnery na VM.
+# CI: testy backendu, build frontu oraz build i smoke test obrazów na każdym PR i pushu na main.
+# Registry: po zielonym smoke test na main te same obrazy trafiają do GHCR (tag = SHA commita).
+# CD: wdrożenie rolling app1 -> app2 przez self-hosted runnery; maszyny tylko pobierają i uruchamiają obrazy.
 name: CI/CD
 
 on:
@@ -58,14 +59,31 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  # Buduje obrazy, testuje DOKŁADNIE te obrazy i na main wypycha je do GHCR (tag = SHA commita).
+  # Maszyny w OCI są arm64, więc budujemy natywnie na runnerze arm64 (bez emulacji).
+  # Nazwa joba zostaje "smoke": ruleset wymaga checka o tej nazwie.
   smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_TAG: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose -f tools/docker-compose.yml up -d --build --wait
+      - run: docker compose -f tools/docker-compose.yml build backend frontend
+      - run: docker compose -f tools/docker-compose.yml up -d --no-build --wait
       - run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/api/health
       - if: failure()
         run: docker compose -f tools/docker-compose.yml logs
+      # Wypychamy dopiero po zielonym teście i tylko z main (PR-y, w tym z forków, niczego nie publikują).
+      - name: Wypchnij obrazy do GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker compose -f tools/docker-compose.yml push backend frontend
 
   deploy:
     needs: [backend, frontend, smoke]
@@ -82,28 +100,41 @@ jobs:
     concurrency:
       group: deploy-${{ matrix.host }}
       cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read   # pobieranie obrazów z GHCR tokenem joba
     steps:
       # Bez checkout: pracujemy na /opt/questlog (tools/.env jest poza gitem).
+      # Z repo potrzebny jest tylko plik compose; obrazów już nie budujemy na maszynie.
       - name: Pobierz wersję z main
         run: cd /opt/questlog && git fetch origin main && git reset --hard "$GITHUB_SHA"
-      # Sekrety z environmentu production trafiają do tools/.env (prawa 600).
-      # Podmieniamy tylko te dwa klucze; resztę (np. WEB_CONCURRENCY) zostawiamy.
-      - name: Zapisz sekrety do tools/.env
+      # Konfiguracja trafia do tools/.env (prawa 600): sekrety z environmentu production
+      # oraz IMAGE_TAG (SHA commita). Podmieniamy tylko te klucze; resztę (np. WEB_CONCURRENCY) zostawiamy.
+      - name: Zapisz konfigurację do tools/.env
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           : "${DATABASE_URL:?brak sekretu DATABASE_URL}" "${SECRET_KEY:?brak sekretu SECRET_KEY}"
           case "$DATABASE_URL$SECRET_KEY" in *\'*) echo "sekret zawiera apostrof"; exit 1;; esac
           umask 077
           f=/opt/questlog/tools/.env
-          { grep -vE '^(DATABASE_URL|SECRET_KEY)=' "$f" || true
-            printf "DATABASE_URL='%s'\nSECRET_KEY='%s'\n" "$DATABASE_URL" "$SECRET_KEY"
+          { grep -vE '^(DATABASE_URL|SECRET_KEY|IMAGE_TAG)=' "$f" || true
+            printf "DATABASE_URL='%s'\nSECRET_KEY='%s'\nIMAGE_TAG=%s\n" "$DATABASE_URL" "$SECRET_KEY" "$IMAGE_TAG"
           } > "$f.new"
           mv "$f.new" "$f"
-      - name: Przebuduj i uruchom kontenery
-        run: docker compose -f /opt/questlog/tools/docker-compose.cloud.yml up -d --build
+      - name: Pobierz obrazy z GHCR i uruchom kontenery
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd /opt/questlog/tools
+          trap 'docker logout ghcr.io' EXIT
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker compose -f docker-compose.cloud.yml pull
+          docker compose -f docker-compose.cloud.yml up -d
       - name: Health check
         run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost/api/health
+      # Obrazy mają tagi SHA, więc stare nie są "dangling": usuwamy nieużywane starsze niż doba.
       - name: Sprzątanie starych obrazów
-        run: docker image prune -f
+        run: docker image prune -af --filter "until=24h"
