@@ -113,6 +113,30 @@ Obrazy: `ghcr.io/frodz1/questlog-backend` i `ghcr.io/frodz1/questlog-frontend`, 
 
 Lokalnie nic się nie zmienia: `docker compose up -d --build` buduje te same obrazy z tagiem `dev`. Nowe pakiety w GHCR są domyślnie prywatne; jeśli `compose pull` zwróci `denied`, w Packages → pakiet → *Package settings* dodaj repozytorium `webowka` w „Manage Actions access” (rola Read) albo ustaw pakiet jako publiczny.
 
+### Skany bezpieczeństwa (L6)
+
+| Rodzaj | Narzędzie | Gdzie | Blokuje gdy |
+|--------|-----------|-------|-------------|
+| SAST | Semgrep 1.184 (`p/default`) | job `sast` | jakiekolwiek znalezisko |
+| Sekrety | Gitleaks 8.30 (cała historia gita) | job `secrets` | jakikolwiek sekret |
+| SCA | `pip-audit`, `npm audit --omit=dev` | joby `backend`, `frontend` | znana podatność (npm: od HIGH) |
+| Obrazy | Trivy 0.76 | job `smoke`, przed pushem | HIGH/CRITICAL z poprawką; wyjątki w [`.trivyignore`](../.trivyignore) (z datą wygaśnięcia) |
+| DAST | OWASP ZAP 2.17 baseline | job `smoke`, na działającym stosie | każde ostrzeżenie poza [`zap-rules.tsv`](zap-rules.tsv); raport HTML jako artefakt `zap-report` |
+| Podpis | cosign (para kluczy) | `smoke` podpisuje na `main`, `deploy` weryfikuje | brak/zły podpis = brak wdrożenia |
+
+Lokalnie, np. Trivy: `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.2 image ghcr.io/frodz1/questlog-backend:dev`.
+
+Jednorazowo – klucz cosign (prywatny tylko w sekretach repo, publiczny w gicie):
+
+```bash
+cd tools
+docker run --rm -it -v "$PWD:/w" -w /w ghcr.io/sigstore/cosign/cosign:v3.1.4 generate-key-pair
+gh secret set COSIGN_PRIVATE_KEY < cosign.key && gh secret set COSIGN_PASSWORD   # hasło podane wyżej
+rm cosign.key && git add cosign.pub
+```
+
+Ręczna weryfikacja: `cosign verify --key tools/cosign.pub ghcr.io/frodz1/questlog-backend:<sha>`.
+
 ### Jednorazowa konfiguracja runnera (na każdej VM, `--name`/`--labels` = `app1` lub `app2`)
 
 ```bash
@@ -131,4 +155,4 @@ Token: Settings → Actions → Runners → New self-hosted runner (albo `gh api
 
 - Actions → General → Fork pull request workflows: **Require approval for all outside collaborators** (repo jest publiczne – cudzy PR nie może odpalić kodu na naszych VM).
 - Environments → `production`: wdrożenia tylko z gałęzi `main`.
-- Rules → ruleset `main`: wymagany PR i zielone checki `backend`, `frontend`, `smoke`.
+- Rules → ruleset `main`: wymagany PR i zielone checki `backend`, `frontend`, `sast`, `secrets`, `smoke`.

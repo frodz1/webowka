@@ -1,0 +1,4 @@
+# Reguły ZAP baseline ignorowane w CI (pozostałe ostrzeżenia blokują pipeline).
+10049	IGNORE	(Storable and Cacheable Content: informacyjne, cache assetów jest celowy)
+10109	IGNORE	(Modern Web Application: informacyjne, to SPA)
+90004	IGNORE	(COEP: nie używamy SharedArrayBuffer, require-corp nic nie daje)
