@@ -6,6 +6,16 @@
 :80 {
 	encode zstd gzip
 
+	# Nagłówki bezpieczeństwa (wymagane przez skan DAST ZAP w CI).
+	header {
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
 	# API: przekazujemy do backendu (Flask) w sieci Dockera.
 	handle /api/* {
 		reverse_proxy backend:5000

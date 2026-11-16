@@ -1,0 +1,6 @@
+# Wyjątki dla skanu obrazów Trivy. Każdy wpis: uzasadnienie + data wygaśnięcia,
+# po której wyjątek przestaje działać i skan znów zablokuje pipeline.
+
+# golang.org/x/net/html w binarce Caddy (DoS przy parsowaniu HTML). Brak wydania Caddy z poprawką
+# (2.11.9 to najnowsza), a nasz Caddyfile nie parsuje HTML (brak templates), tylko serwuje pliki i proxy.
+CVE-2026-78661 exp:2027-01-31
