@@ -1,9 +1,3 @@
-# CI: testy backendu, build frontu oraz build i smoke test obrazów na każdym PR i pushu na main.
-# Bezpieczeństwo (L6): SAST (Semgrep), sekrety (Gitleaks), SCA (pip-audit, npm audit),
-#   skan obrazów (Trivy), DAST (OWASP ZAP), podpis obrazów (cosign). Każdy skan blokuje pipeline.
-# Registry: po zielonym smoke test na main te same obrazy trafiają do GHCR (tag = SHA commita) i są podpisywane.
-# CD: wdrożenie rolling app1 -> app2 przez self-hosted runnery; maszyny weryfikują podpis, pobierają i uruchamiają obrazy.
-# Akcje są przypięte do SHA commita (tag można przestawić, SHA nie).
 name: CI/CD
 
 on:
@@ -62,7 +56,6 @@ jobs:
           cache: npm
           cache-dependency-path: code/frontend/package-lock.json
       - run: npm ci
-      # Tylko zależności produkcyjne: narzędzia deweloperskie (vite) nie trafiają do obrazu, który serwuje dist/.
       - name: SCA - znane podatności w zależnościach npm (npm audit)
         run: npm audit --omit=dev --audit-level=high
       - run: npm run build
@@ -71,7 +64,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      # Reguły p/default: Python, JS/React, Dockerfile, GitHub Actions. --error = każde znalezisko blokuje.
       - name: SAST (Semgrep)
         run: pipx run semgrep==1.184.0 scan --config p/default --error --metrics=off
 
@@ -80,14 +72,10 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0 # cała historia: sekret usunięty w późniejszym commicie nadal jest wyciekiem
-      # --redact: znaleziony sekret nie trafia do publicznych logów Actions.
+          fetch-depth: 0
       - name: Skan sekretów w historii gita (Gitleaks)
         run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --redact --no-banner -v
 
-  # Buduje obrazy, skanuje i testuje DOKŁADNIE te obrazy, na main wypycha je do GHCR (tag = SHA commita) i podpisuje.
-  # Maszyny w OCI są arm64, więc budujemy natywnie na runnerze arm64 (bez emulacji).
-  # Nazwa joba zostaje "smoke": ruleset wymaga checka o tej nazwie.
   smoke:
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -98,7 +86,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: docker compose -f tools/docker-compose.yml build backend frontend
-      # HIGH/CRITICAL z dostępną poprawką blokują pipeline; wyjątki z uzasadnieniem i datą ważności w .trivyignore.
       - name: Skan obrazów (Trivy)
         run: |
           for s in backend frontend; do
@@ -108,7 +95,6 @@ jobs:
           done
       - run: docker compose -f tools/docker-compose.yml up -d --no-build --wait
       - run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/api/health
-      # Pasywny skan działającej aplikacji. Ostrzeżenia blokują pipeline, poza regułami z tools/zap-rules.tsv.
       - name: DAST (OWASP ZAP baseline)
         run: |
           mkdir -p zap && cp tools/zap-rules.tsv zap/ && chmod -R 777 zap
@@ -122,7 +108,6 @@ jobs:
           if-no-files-found: ignore
       - if: failure()
         run: docker compose -f tools/docker-compose.yml logs
-      # Wypychamy dopiero po zielonych testach i skanach, tylko z main (PR-y, w tym z forków, niczego nie publikują).
       - name: Wypchnij obrazy do GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -132,7 +117,6 @@ jobs:
           docker compose -f tools/docker-compose.yml push backend frontend
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
-      # Podpis po digeście (nie po tagu). Klucz prywatny tylko w sekretach repo; publiczny w tools/cosign.pub.
       - name: Podpisz obrazy (cosign)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -151,8 +135,8 @@ jobs:
     strategy:
       matrix:
         host: [app1, app2]
-      max-parallel: 1   # rolling: jedna instancja naraz, druga obsługuje ruch za LB
-      fail-fast: true   # padnie app1 -> app2 zostaje na starej wersji
+      max-parallel: 1 # rolling deploy
+      fail-fast: true
     runs-on: [self-hosted, "${{ matrix.host }}"]
     environment:
       name: production
@@ -162,14 +146,10 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
-      packages: read   # pobieranie obrazów z GHCR tokenem joba
+      packages: read
     steps:
-      # Bez checkout: pracujemy na /opt/questlog (tools/.env jest poza gitem).
-      # Z repo potrzebne są tylko plik compose i klucz publiczny cosign; obrazów nie budujemy na maszynie.
       - name: Pobierz wersję z main
         run: cd /opt/questlog && git fetch origin main && git reset --hard "$GITHUB_SHA"
-      # Konfiguracja trafia do tools/.env (prawa 600): sekrety z environmentu production
-      # oraz IMAGE_TAG (SHA commita). Podmieniamy tylko te klucze; resztę (np. WEB_CONCURRENCY) zostawiamy.
       - name: Zapisz konfigurację do tools/.env
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -185,7 +165,6 @@ jobs:
           } > "$f.new"
           mv "$f.new" "$f"
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
-      # Niepodpisany (lub podpisany innym kluczem) obraz nie zostanie uruchomiony.
       - name: Zweryfikuj podpisy, pobierz obrazy z GHCR i uruchom kontenery
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -200,6 +179,5 @@ jobs:
           docker compose -f docker-compose.cloud.yml up -d
       - name: Health check
         run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost/api/health
-      # Obrazy mają tagi SHA, więc stare nie są "dangling": usuwamy nieużywane starsze niż doba.
       - name: Sprzątanie starych obrazów
         run: docker image prune -af --filter "until=24h"
