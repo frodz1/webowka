@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT         NOT NULL,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_logins INTEGER     NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until  TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_key ON users (lower(username));
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_key    ON users (lower(email));
 

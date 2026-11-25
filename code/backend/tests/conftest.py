@@ -12,6 +12,7 @@ from app import config
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 if TEST_DATABASE_URL:
     config.DATABASE_URL = TEST_DATABASE_URL
+config.RATE_LIMIT_ENABLED = False
 
 from app import create_app  # noqa: E402
 from app.db import get_pool, init_schema  # noqa: E402
@@ -52,7 +53,7 @@ def client():
 def register(client):
     """Zakłada użytkownika i zwraca (nagłówki z tokenem, dane użytkownika)."""
 
-    def _register(username=None, password="sekret123"):
+    def _register(username=None, password="sekretne-haslo-1"):
         n = next(_counter)
         username = username or f"user{n}"
         res = client.post(
