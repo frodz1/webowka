@@ -7,12 +7,12 @@ def make_post(client, headers, **overrides):
 
 
 def test_register_login_and_me(client, register):
-    headers, user = register("anna", "sekret123")
+    headers, user = register("anna", "sekretne-haslo-1")
     assert client.get("/api/auth/me", headers=headers).get_json()["user"]["username"] == "anna"
 
-    ok = client.post("/api/auth/login", json={"login": "ANNA", "password": "sekret123"})
+    ok = client.post("/api/auth/login", json={"login": "ANNA", "password": "sekretne-haslo-1"})
     assert ok.status_code == 200 and ok.get_json()["token"]
-    by_email = client.post("/api/auth/login", json={"login": "anna@example.com", "password": "sekret123"})
+    by_email = client.post("/api/auth/login", json={"login": "anna@example.com", "password": "sekretne-haslo-1"})
     assert by_email.status_code == 200
     bad = client.post("/api/auth/login", json={"login": "anna", "password": "zle"})
     assert bad.status_code == 401
@@ -20,11 +20,11 @@ def test_register_login_and_me(client, register):
 
 def test_register_validation_and_duplicates(client, register):
     register("anna")
-    dup = client.post("/api/auth/register", json={"username": "Anna", "email": "x@y.pl", "password": "sekret123"})
+    dup = client.post("/api/auth/register", json={"username": "Anna", "email": "x@y.pl", "password": "sekretne-haslo-1"})
     assert dup.status_code == 409
     short = client.post("/api/auth/register", json={"username": "bob", "email": "b@y.pl", "password": "123"})
     assert short.status_code == 400
-    bad_name = client.post("/api/auth/register", json={"username": "a b", "email": "c@y.pl", "password": "sekret123"})
+    bad_name = client.post("/api/auth/register", json={"username": "a b", "email": "c@y.pl", "password": "sekretne-haslo-1"})
     assert bad_name.status_code == 400
 
 

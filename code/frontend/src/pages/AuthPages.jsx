@@ -51,7 +51,7 @@ function AuthForm({ mode }) {
       )}
       <label>
         Hasło
-        <input type="password" value={form.password} onChange={set('password')} minLength={isRegister ? 6 : undefined} required />
+        <input type="password" value={form.password} onChange={set('password')} minLength={isRegister ? 10 : undefined} maxLength={isRegister ? 128 : undefined} required />
       </label>
       {error && <p className="error">{error}</p>}
       <button className="btn btn-primary" disabled={busy}>
