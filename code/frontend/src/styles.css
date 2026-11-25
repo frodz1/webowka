@@ -178,3 +178,6 @@ textarea { resize: vertical; }
   .footer-right { align-items: flex-start; }
   .footer-links { flex-wrap: wrap; }
 }
+.session { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.session p { margin: 2px 0 0; }
+.session-current { color: var(--accent-ink); font-weight: 600; }

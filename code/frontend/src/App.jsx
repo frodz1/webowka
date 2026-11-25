@@ -5,6 +5,7 @@ import Board from './pages/Board.jsx';
 import PostPage from './pages/PostPage.jsx';
 import PostEditor from './pages/PostEditor.jsx';
 import MyContent from './pages/MyContent.jsx';
+import Sessions from './pages/Sessions.jsx';
 import { Login, Register } from './pages/AuthPages.jsx';
 
 function Header() {
@@ -20,6 +21,7 @@ function Header() {
             Tablica
           </NavLink>
           {user && <NavLink to="/me">Moje treści</NavLink>}
+          {user && <NavLink to="/sessions">Sesje</NavLink>}
         </nav>
         <div className="topbar-right">
           <ThemeToggle />
@@ -121,6 +123,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <MyContent />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/sessions"
+            element={
+              <RequireAuth>
+                <Sessions />
               </RequireAuth>
             }
           />
