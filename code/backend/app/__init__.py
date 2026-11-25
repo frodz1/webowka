@@ -1,12 +1,13 @@
 import datetime as dt
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from flask.json.provider import DefaultJSONProvider
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import config
 from .extensions import limiter
+from .security_log import log_event
 
 
 class JSONProvider(DefaultJSONProvider):
@@ -51,6 +52,15 @@ def create_app():
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if request.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        if response.status_code in (401, 403, 429):
+            user = g.get("user")
+            log_event(
+                "denied",
+                status=response.status_code,
+                method=request.method,
+                path=request.path,
+                user_id=user["id"] if user else None,
+            )
         return response
 
     return app

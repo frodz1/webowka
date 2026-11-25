@@ -55,3 +55,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS votes_user_post_key    ON votes (user_id, post
 CREATE UNIQUE INDEX IF NOT EXISTS votes_user_comment_key ON votes (user_id, comment_id) WHERE comment_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS votes_post_idx    ON votes (post_id)    WHERE post_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS votes_comment_idx ON votes (comment_id) WHERE comment_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id         TEXT PRIMARY KEY,
+    user_id    INTEGER     NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    ip         TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id);
