@@ -10,6 +10,8 @@ services:
     image: ghcr.io/frodz1/questlog-backend:${IMAGE_TAG:?brak IMAGE_TAG w tools/.env (ustawia go pipeline)}
     restart: unless-stopped
     environment:
+      APP_ENV: production
+      PROXY_HOPS: 1
       DATABASE_URL: ${DATABASE_URL:?ustaw DATABASE_URL w tools/.env}
       SECRET_KEY: ${SECRET_KEY:?ten sam na wszystkich instancjach, inaczej tokeny nie przejdą}
       # 2 workery x pula 10 = 20 połączeń na instancję; pilnuj limitu bazy.
