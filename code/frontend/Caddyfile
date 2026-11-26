@@ -3,6 +3,10 @@
 	admin off
 	servers {
 		trusted_proxies static 10.0.0.0/16
+		# Adres klienta: CF-Connecting-IP (ustawia Cloudflare), a bez niego prawy, niezaufany wpis z
+		# X-Forwarded-For (lewy klient może podrobić). Nagłówkowi CF ufamy, bo nsg-lb wpuszcza tylko Cloudflare.
+		trusted_proxies_strict
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
 		timeouts {
 			read_header 10s
 			read_body 15s
