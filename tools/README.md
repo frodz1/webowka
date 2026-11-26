@@ -172,6 +172,7 @@ Suricata 8 (usługa `suricata` w `docker-compose.cloud.yml`, tryb IDS – tylko 
 - af-packet na karcie VM (`enp0s6`, inna: `SURICATA_IFACE` w `tools/.env`). TLS kończy się na LB, więc Suricata widzi odszyfrowany HTTP, łącznie z body.
 - Reguły: ET Open (pobierane przy starcie przez `suricata-update`) + [`suricata/local.rules`](suricata/local.rules): SQLi/XSS w body API, `.env`/`.git`, ruch z pominięciem Cloudflare.
 - W logu tylko alerty, bez treści żądań; adres klienta w polu `alert.xff` (z `CF-Connecting-IP`).
+- Zmiana plików w `tools/suricata/` nie restartuje kontenera przy deployu: po wdrożeniu `cd /opt/questlog/tools && sudo docker compose -f docker-compose.cloud.yml restart suricata`.
 
 ```bash
 # podgląd alertów na VM
