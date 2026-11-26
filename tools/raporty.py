@@ -1,4 +1,4 @@
-"""Generator raportów projektowych QuestLog (L1, L5, L6), każdy na 2 strony A4.
+"""Generator raportów projektowych QuestLog (L1, L5, L6, L7), każdy na 2 strony A4.
 
 Uruchom z katalogu głównego repo: python3 tools/raporty.py
 """
@@ -383,8 +383,104 @@ def l6():
     ]
 
 
+# --------------------------------------------------------------------------- L7
+def l7():
+    return [
+        *header("Elementy bezpieczeństwa w kodzie, w konfiguracji aplikacji i w konfiguracji środowiska", [
+            ("Zespół", TEAM),
+            ("Repozytorium", "github.com/frodz1/webowka · PR #13–#16 (kod, konfiguracja, Cloudflare, Suricata)"),
+            ("Produkcja", "https://questlog.com.pl — Cloudflare → load balancer OCI → 2 VM (Caddy, Flask, Suricata) "
+             "→ Neon Postgres"),
+            ("Data", "26 listopada 2026 · wersja 1.0")]),
+
+        section("01", "Cel i zakres"),
+        P("Aplikację z L3–L6 zabezpieczono na trzech warstwach: w kodzie (konta, sesje, monitoring), w konfiguracji "
+          "aplikacji (połączenia, nagłówki, limity) i w konfiguracji środowiska (WAF, CDN, Anti-DDoS, IPS/IDS, zapory "
+          "sieciowe). Wszystkie wyniki w sekcji 05 pochodzą z testów wykonanych z zewnątrz na produkcji."),
+        Spacer(1, 3),
+        table(None, [["<b>Klient</b><br/>HTTPS, HSTS, CSP", "<b>Cloudflare</b><br/>WAF, rate limit, Anti-DDoS, "
+                      "CDN", "<b>LB OCI</b><br/>nsg-lb: tylko IP Cloudflare; cert Origin CA",
+                      "<b>VM ×2</b><br/>Caddy → Flask; Suricata (IDS)", "<b>Neon</b><br/>TLS wymuszony"]],
+              [30, 38, 40, 38, 28]),
+
+        section("02", "Bezpieczeństwo w kodzie"),
+        table(["Mechanizm", "Implementacja"], [
+            ["<b>Hasła</b>", "10–128 znaków; hash scrypt z solą (werkzeug). Przy nieznanym loginie sprawdzany jest hash "
+             "atrapy, więc czas odpowiedzi nie zdradza istnienia konta."],
+            ["<b>Blokada konta</b>", "5 nieudanych prób = blokada na 15 min; licznik w bazie (działa na obu "
+             "instancjach i po restarcie)."],
+            ["<b>Limity żądań</b>", f"flask-limiter: logowanie 10/min, rejestracja 10/h, API 300/min z IP; odpowiedź "
+             f"429. {code('/api/health')} wyłączone z limitu."],
+            ["<b>Sesje</b>", f"Tabela {code('sessions')}; JWT (HS256, 24 h) niesie {code('jti')} sprawdzany w bazie przy "
+             "każdym żądaniu. Wylogowanie i „wyloguj inne” unieważniają sesję po stronie serwera; strona „Sesje” "
+             "pokazuje IP, przeglądarkę i ostatnią aktywność."],
+            ["<b>Monitoring</b>", f"Log bezpieczeństwa w JSON na stdout: {code('register')}, {code('login_success')}, "
+             f"{code('login_failed')}, {code('account_locked')}, {code('logout')}, {code('session_revoked')} oraz każde "
+             "401/403/429 z metodą i ścieżką."],
+            ["<b>Adres klienta</b>", f"Caddy bierze IP z {code('CF-Connecting-IP')} (wcześniej z lewego wpisu "
+             "X-Forwarded-For, który klient może podrobić i ominąć limity); Flask ufa jednemu proxy (ProxyFix)."],
+        ], [28, 146]),
+
+        section("03", "Konfiguracja aplikacji"),
+        table(["Odcinek / obszar", "Ustawienie"], [
+            ["<b>Przeglądarka → Cloudflare</b>", "certyfikat Cloudflare, Always Use HTTPS, min. TLS 1.2, TLS 1.3"],
+            ["<b>Cloudflare → LB</b>", "tryb Full (strict); na LB certyfikat Cloudflare Origin CA ważny do 2041"],
+            ["<b>LB → VM, backend → baza</b>", f"prywatna sieć VCN; backend w produkcji nie startuje bez "
+             f"{code('sslmode=require')}"],
+            ["<b>Nagłówki (Caddy)</b>", "CSP bez inline, HSTS 1 rok, X-Frame-Options DENY, nosniff, Referrer-Policy, "
+             "Permissions-Policy, COOP/CORP same-origin, bez nagłówka Server; API: Cache-Control no-store"],
+            ["<b>Limity i tryb produkcyjny</b>", "body 128 KB (Caddy) / 64 KB (Flask), timeouty 10/15/30 s; "
+             f"{code('APP_ENV=production')} wymaga własnego SECRET_KEY ≥ 32 znaki"],
+        ], [44, 130]),
+
+        section("04", "Konfiguracja środowiska"),
+        table(["Element", "Realizacja"], [
+            ["<b>WAF</b>", "Cloudflare Free Managed Ruleset + reguła własna: <i>&lt;script</i>, <i>union select</i>, "
+             "<i>' or '1'='1</i> w query → blokada"],
+            ["<b>IPS / rate limit</b>", f"Cloudflare blokuje w ścieżce ruchu; {code('login-limit')}: &gt; 5 × POST "
+             "/api/auth/login w 10 s z IP → 429 na 10 s"],
+            ["<b>Anti-DDoS, CDN</b>", "ochrona L3/4/7 Cloudflare (stała); /assets/* z cache Cloudflare "
+             "(Cache-Control: immutable)"],
+            ["<b>IDS</b>", "Suricata 8 na obu VM (af-packet, tylko alarmuje). Widzi odszyfrowany HTTP za LB, także body. "
+             "ET Open (~53 tys.) + 4 reguły własne: SQLi/XSS w body API, .env/.git, ruch z pominięciem Cloudflare. "
+             "Log: tylko alerty, bez treści żądań, IP klienta z CF-Connecting-IP."],
+            ["<b>Zapory OCI</b>", "nsg-lb: tylko 443 z 15 zakresów Cloudflare (było 80/443 z 0.0.0.0/0); nsg-app: 80 "
+             "tylko z nsg-lb; SSH tylko z 2 adresów (było z całego internetu)"],
+        ], [28, 146]),
+
+        section("05", "Weryfikacja na produkcji"),
+        table(["Test", "Wynik"], [
+            ["Strona przez Cloudflare / curl prosto na IP LB (80, 443)", "200, server: cloudflare / <b>timeout</b>"],
+            ["Query z &lt;script&gt;, UNION SELECT, ' or '1'='1 / zwykłe zapytanie", "<b>403</b> (WAF) / 200"],
+            ["6 × logowanie w 10 s", "5 × 401, potem <b>429</b> (Cloudflare, error 1015, retry-after 10)"],
+            ["Ten sam plik /assets/*.js dwa razy", "cf-cache-status: MISS, potem <b>HIT</b>"],
+            ["SQLi / XSS w body, GET /.env", "401 / 400 z aplikacji; <b>alerty Suricaty</b> (własne i ET Open) z IP "
+             "klienta na app1 i app2"],
+            ["Podrobiony X-Forwarded-For: 1.2.3.4", "w logu bezpieczeństwa prawdziwe IP klienta"],
+            ["Certyfikat LB widziany bezpośrednio", "Origin CA (do 22.11.2041), nieufany poza Cloudflare"],
+        ], [80, 94]),
+
+        section("06", "Ograniczenia i podsumowanie"),
+        *bullets([
+            "Token JWT trzymany w localStorage (chroni go CSP bez inline); limity flask-limiter w pamięci każdego "
+            "workera — dlatego twardy limit logowań jest też w Cloudflare.",
+            "Suricata tylko jako IDS (blokowanie inline przy 1 OCPU groziłoby odcięciem użytkowników); brak rotacji "
+            "eve.json i centralnego SIEM. Plan Free Cloudflare nie ma reguł OWASP Core.",
+            "Lista zakresów Cloudflare w nsg-lb wymaga ręcznej aktualizacji przy jej zmianie (rzadko).",
+        ]),
+        Spacer(1, 3),
+        P("Ochrona jest warstwowa: Cloudflare filtruje i ogranicza ruch na brzegu, zapory OCI nie pozwalają go ominąć, "
+          "aplikacja broni kont i sesji niezależnie od brzegu, a Suricata rejestruje ataki, które dotarły do serwera. "
+          "Wszystkie elementy działają na produkcji i zostały sprawdzone testami z zewnątrz."),
+        Spacer(1, 4),
+        P(f"<b>Załączniki w repozytorium:</b> {code('tools/README.md')} (sekcja L7), {code('tools/suricata/')}, "
+          f"{code('code/frontend/Caddyfile')}, {code('Lab7-Questlog.pdf')} (prezentacja).", small),
+    ]
+
+
 if __name__ == "__main__":
     build("QuestLog_raport.pdf", "L1 · Wybór aplikacji do implementacji", l1())
     shutil.copy("QuestLog_raport.pdf", "tools/QuestLog_raport.pdf")
     build("QuestLog_raport_L5.pdf", "L5 · Proces CI/CD", l5())
     build("QuestLog_raport_L6.pdf", "L6 · Bezpieczeństwo CI/CD", l6())
+    build("QuestLog_raport_L7.pdf", "L7 · Elementy bezpieczeństwa", l7())
