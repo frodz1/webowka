@@ -48,10 +48,10 @@ export default function Sessions() {
         <div className="card session" key={s.id}>
           <div>
             <strong title={s.user_agent}>{s.user_agent || 'Nieznane urządzenie'}</strong>
-            {s.current && <span className="session-current"> · ta sesja</span>}
             <p className="muted">
               IP {s.ip || '—'} · ostatnia aktywność {timeAgo(s.last_seen)} · zalogowano {timeAgo(s.created_at)}
             </p>
+            {s.current && <span className="session-current">Ta sesja</span>}
           </div>
           <button className="btn btn-ghost" onClick={() => revoke(s)}>
             Wyloguj

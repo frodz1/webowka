@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
+import { ChevronDown, ChevronUp } from './Icon.jsx';
 
 /** Głosowanie w górę/w dół. `kind` to "posts" albo "comments"; ponowne kliknięcie cofa głos. */
 export default function VoteButtons({ kind, id, score, myVote }) {
@@ -9,6 +10,7 @@ export default function VoteButtons({ kind, id, score, myVote }) {
   const navigate = useNavigate();
   const [state, setState] = useState({ score, myVote: myVote ?? null });
   const [busy, setBusy] = useState(false);
+  const [bumps, setBumps] = useState(0); // >0 dopiero po kliknięciu: animacja nie gra przy wczytaniu listy
 
   useEffect(() => setState({ score, myVote: myVote ?? null }), [score, myVote]);
 
@@ -20,6 +22,7 @@ export default function VoteButtons({ kind, id, score, myVote }) {
       const next = state.myVote === value ? 0 : value;
       const res = await api.post(`/${kind}/${id}/vote`, { value: next });
       setState({ score: res.score, myVote: res.my_vote });
+      setBumps((n) => n + 1);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -28,23 +31,23 @@ export default function VoteButtons({ kind, id, score, myVote }) {
   }
 
   return (
-    <div className="votes">
+    <div className={`votes ${bumps ? 'bumped' : ''}`}>
       <button
         className={`vote-btn up ${state.myVote === 1 ? 'active' : ''}`}
         onClick={() => vote(1)}
         aria-label="Głos w górę"
         aria-pressed={state.myVote === 1}
       >
-        ▲
+        <ChevronUp />
       </button>
-      <span className={`score ${state.score > 0 ? 'pos' : state.score < 0 ? 'neg' : ''}`}>{state.score}</span>
+      <span key={bumps} className={`score ${state.score > 0 ? 'pos' : state.score < 0 ? 'neg' : ''}`}>{state.score}</span>
       <button
         className={`vote-btn down ${state.myVote === -1 ? 'active' : ''}`}
         onClick={() => vote(-1)}
         aria-label="Głos w dół"
         aria-pressed={state.myVote === -1}
       >
-        ▼
+        <ChevronDown />
       </button>
     </div>
   );

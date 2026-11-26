@@ -4,6 +4,8 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import CommentSection from '../components/CommentSection.jsx';
 import PostCard from '../components/PostCard.jsx';
+import { ArrowLeft } from '../components/Icon.jsx';
+import { SkeletonCard } from '../components/Skeleton.jsx';
 
 export default function PostPage() {
   const { id } = useParams();
@@ -40,13 +42,25 @@ export default function PostPage() {
     }
   }
 
+  const back = (
+    <Link to="/" className="back">
+      <ArrowLeft /> Tablica
+    </Link>
+  );
   if (error) return <p className="error">{error}</p>;
-  if (!post) return <p className="muted">Ładowanie…</p>;
+  if (!post)
+    return (
+      <div>
+        {back}
+        <SkeletonCard />
+      </div>
+    );
 
   const isOwner = user && user.id === post.author_id;
 
   return (
     <div>
+      {back}
       <PostCard post={post} hideSnippet>
         {isOwner && (
           <>
