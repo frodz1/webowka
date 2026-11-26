@@ -24,3 +24,32 @@ services:
       - backend
     ports:
       - "80:80"
+
+  # IDS (L7): Suricata dostaje kopię ruchu z karty VM (af-packet) i tylko alarmuje, niczego
+  # nie blokuje (blokuje WAF Cloudflare). Reguły: ET Open + suricata/local.rules.
+  # Alerty: sudo docker exec questlog-suricata-1 tail -f /var/log/suricata/eve.json
+  suricata:
+    image: jasonish/suricata:8.0.8
+    restart: unless-stopped
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE]
+    mem_limit: 1g
+    volumes:
+      - ./suricata:/questlog:ro
+      - suricata-rules:/var/lib/suricata
+      - suricata-logs:/var/log/suricata
+    # Własny start: najpierw odświeżenie reguł (przy błędzie zostają poprzednie z wolumenu).
+    # ponytail: eve.json bez rotacji - same alerty, rośnie wolno; logrotate, gdy zacznie ważyć.
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        cp -an /etc/suricata.dist/. /etc/suricata/ &&
+        { suricata-update -q --no-reload --local /questlog/local.rules
+        --disable-conf /questlog/disable.conf || echo "suricata-update nieudane"; } &&
+        exec /docker-entrypoint.sh --af-packet=${SURICATA_IFACE:-enp0s6}
+        --include /questlog/questlog.yaml
+        --set vars.address-groups.EXTERNAL_NET=any --set stats.enabled=no
+
+volumes:
+  suricata-rules:
+  suricata-logs:

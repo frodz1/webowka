@@ -156,3 +156,25 @@ Token: Settings → Actions → Runners → New self-hosted runner (albo `gh api
 - Actions → General → Fork pull request workflows: **Require approval for all outside collaborators** (repo jest publiczne – cudzy PR nie może odpalić kodu na naszych VM).
 - Environments → `production`: wdrożenia tylko z gałęzi `main`.
 - Rules → ruleset `main`: wymagany PR i zielone checki `backend`, `frontend`, `sast`, `secrets`, `smoke`.
+
+## Bezpieczeństwo środowiska (L7)
+
+Ścieżka ruchu: klient → **Cloudflare** (WAF, CDN, Anti-DDoS) → load balancer OCI (TLS) → VM: Caddy → Flask, a na VM **Suricata** (IDS) podsłuchuje ruch.
+
+Cloudflare (plan Free, konfiguracja w panelu/API, poza repo):
+- SSL **Full (strict)**, Always Use HTTPS, min. TLS 1.2; HSTS wysyła Caddy.
+- WAF: Cloudflare Free Managed Ruleset + reguła `xss-sqli-query` (blokuje `<script`, `union select`, `' or '1'='1` w query).
+- Rate limiting `login-limit`: `POST /api/auth/login` > 5 / 10 s z jednego IP → blokada.
+- Anti-DDoS L7 (stale włączone), CDN dla `/assets/*` (Caddy wysyła `Cache-Control: immutable`).
+- Caddy bierze adres klienta z `CF-Connecting-IP`; `nsg-lb` wpuszcza na 443 tylko [zakresy IP Cloudflare](https://www.cloudflare.com/ips-v4).
+
+Suricata 8 (usługa `suricata` w `docker-compose.cloud.yml`, tryb IDS – tylko alarmuje):
+- af-packet na karcie VM (`enp0s6`, inna: `SURICATA_IFACE` w `tools/.env`). TLS kończy się na LB, więc Suricata widzi odszyfrowany HTTP, łącznie z body.
+- Reguły: ET Open (pobierane przy starcie przez `suricata-update`) + [`suricata/local.rules`](suricata/local.rules): SQLi/XSS w body API, `.env`/`.git`, ruch z pominięciem Cloudflare.
+- W logu tylko alerty, bez treści żądań; adres klienta w polu `alert.xff` (z `CF-Connecting-IP`).
+
+```bash
+# podgląd alertów na VM
+sudo docker exec questlog-suricata-1 tail -f /var/log/suricata/eve.json \
+  | jq -c '{t: .timestamp, sid: .alert.signature_id, msg: .alert.signature, klient: .alert.xff, url: .http.url}'
+```
