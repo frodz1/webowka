@@ -1,5 +1,7 @@
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth.jsx';
+import Avatar from './components/Avatar.jsx';
+import { Plus } from './components/Icon.jsx';
 import ThemeToggle from './components/ThemeToggle.jsx';
 import Board from './pages/Board.jsx';
 import PostPage from './pages/PostPage.jsx';
@@ -8,14 +10,25 @@ import MyContent from './pages/MyContent.jsx';
 import Sessions from './pages/Sessions.jsx';
 import { Login, Register } from './pages/AuthPages.jsx';
 
+function Logo() {
+  return (
+    <Link to="/" className="logo" aria-label="QuestLog – tablica">
+      <span className="logo-mark" aria-hidden="true">
+        Q
+      </span>
+      <span className="logo-text">
+        Quest<span>Log</span>
+      </span>
+    </Link>
+  );
+}
+
 function Header() {
   const { user, logout } = useAuth();
   return (
     <header className="topbar">
-      <div className="topbar-inner">
-        <Link to="/" className="logo">
-          Quest<span>Log</span>
-        </Link>
+      <div className="topbar-inner container">
+        <Logo />
         <nav className="nav">
           <NavLink to="/" end>
             Tablica
@@ -28,9 +41,13 @@ function Header() {
           {user ? (
             <>
               <Link to="/submit" className="btn btn-primary">
-                + Dodaj
+                <Plus />
+                <span className="hide-sm">Dodaj</span>
               </Link>
-              <span className="who">{user.username}</span>
+              <span className="who">
+                <Avatar name={user.username} size={30} />
+                <span className="who-name">{user.username}</span>
+              </span>
               <button className="btn btn-ghost" onClick={logout}>
                 Wyloguj
               </button>
@@ -63,11 +80,9 @@ function Footer() {
   const { user } = useAuth();
   return (
     <footer className="footer">
-      <div className="footer-inner">
+      <div className="footer-inner container">
         <div>
-          <Link to="/" className="logo">
-            Quest<span>Log</span>
-          </Link>
+          <Logo />
           <p className="muted">Znajdź. Oceń. Skomentuj.</p>
         </div>
         <div className="footer-right">

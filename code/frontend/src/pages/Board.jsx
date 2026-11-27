@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import Pagination from '../components/Pagination.jsx';
 import PostCard from '../components/PostCard.jsx';
+import { Inbox, Plus } from '../components/Icon.jsx';
+import { SkeletonList } from '../components/Skeleton.jsx';
 
 const SORTS = [
   ['hot', 'Gorące'],
@@ -43,7 +45,11 @@ export default function Board() {
   return (
     <div className="layout">
       <div>
-        <div className="toolbar">
+        <div className="page-head">
+          <div>
+            <h1>{tag ? `#${tag}` : 'Tablica'}</h1>
+            <p className="muted">{tag ? 'Znaleziska z tym tagiem' : 'Najciekawsze znaleziska społeczności'}</p>
+          </div>
           <div className="toggle">
             {SORTS.map(([key, label]) => (
               <button key={key} className={sort === key ? 'active' : ''} onClick={() => update({ sort: key, page: '' })}>
@@ -51,19 +57,25 @@ export default function Board() {
               </button>
             ))}
           </div>
-          {tag && (
+        </div>
+        {tag && (
+          <div className="toolbar">
             <button className="tag removable" onClick={() => update({ tag: '', page: '' })}>
               #{tag} ✕
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {error && <p className="error">{error}</p>}
-        {!data && !error && <p className="muted">Ładowanie…</p>}
+        {!data && !error && <SkeletonList />}
         {data && data.items.length === 0 && (
-          <p className="muted">
-            Brak znalezisk. <Link to="/submit">Dodaj pierwsze!</Link>
-          </p>
+          <div className="card empty">
+            <Inbox />
+            <p>Brak znalezisk.</p>
+            <Link to="/submit" className="btn btn-primary">
+              <Plus /> Dodaj pierwsze
+            </Link>
+          </div>
         )}
         {data?.items.map((post) => (
           <PostCard key={post.id} post={post} />
@@ -72,15 +84,24 @@ export default function Board() {
         {data && <Pagination page={data.page} pages={data.pages} onChange={(n) => { update({ page: String(n) }); window.scrollTo({ top: 0 }); }} />}
       </div>
 
-      <aside className="card sidebar">
-        <h3>Tagi</h3>
-        {tags.length === 0 && <p className="muted">Brak tagów.</p>}
-        <div className="tag-list">
-          {tags.map((t) => (
-            <button key={t.tag} className={`tag ${t.tag === tag ? 'selected' : ''}`} onClick={() => update({ tag: t.tag, page: '' })}>
-              #{t.tag} <small>{t.count}</small>
-            </button>
-          ))}
+      <aside className="sidebar-col">
+        <div className="card cta">
+          <h3>Masz coś ciekawego?</h3>
+          <p>Podziel się linkiem albo krótkim tekstem i zbierz głosy społeczności.</p>
+          <Link to="/submit" className="btn btn-primary btn-block">
+            <Plus /> Dodaj znalezisko
+          </Link>
+        </div>
+        <div className="card sidebar">
+          <h3>Tagi</h3>
+          {tags.length === 0 && <p className="muted">Brak tagów.</p>}
+          <div className="tag-list">
+            {tags.map((t) => (
+              <button key={t.tag} className={`tag ${t.tag === tag ? 'selected' : ''}`} onClick={() => update({ tag: t.tag, page: '' })}>
+                #{t.tag} <small>{t.count}</small>
+              </button>
+            ))}
+          </div>
         </div>
       </aside>
     </div>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { timeAgo } from '../utils.js';
+import Avatar from './Avatar.jsx';
 import CommentForm from './CommentForm.jsx';
 import VoteButtons from './VoteButtons.jsx';
 
@@ -44,7 +45,10 @@ function Comment({ node, postId, depth, flat, authorsById, onChange }) {
         {node.deleted ? <div className="votes-spacer" /> : <VoteButtons kind="comments" id={node.id} score={node.score} myVote={node.my_vote} />}
         <div className="comment-main">
           <div className="meta">
-            <strong>{node.author ?? '[usunięto]'}</strong>
+            <strong className="author">
+              <Avatar name={node.author ?? '?'} />
+              {node.author ?? '[usunięto]'}
+            </strong>
             <span>{timeAgo(node.created_at)}</span>
             {node.updated_at && !node.deleted && <span>(edytowano)</span>}
             {parentAuthor && <span>↳ do {parentAuthor}</span>}
