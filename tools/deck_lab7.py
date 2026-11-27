@@ -15,6 +15,7 @@ LILAC = HexColor("#a78bfa")
 EDGE = HexColor("#e2d9f7")
 RED = HexColor("#e5484d")
 CODE_BG = HexColor("#221b40")
+STRIPE = HexColor("#f7f5fd")
 
 S = "/System/Library/Fonts/Supplemental/"
 pdfmetrics.registerFont(TTFont("B", S + "Arial Bold.ttf"))
@@ -101,38 +102,52 @@ def arrow(x1, y1, x2, y2, color=LILAC, lw=1.4, head=5):
     c.drawPath(p, stroke=0, fill=1)
 
 
-def bullets(y, items, col, x=54, width=W - 128, size=11):
+def bullets(y, items, col, x=54, width=W - 128, size=11, gap=7):
     for b in items:
         c.setFillColor(col)
         c.circle(x, y + 4, 2.6, stroke=0, fill=1)
-        y = wrap(x + 10, y, b, width, size) - 7
+        y = wrap(x + 10, y, b, width, size) - gap
     return y
 
 
-def rows(y, items, h=48, gap=10):
-    """Lista pasków nazwa + opis z ptaszkiem (jak „Wymagania” w L5)."""
-    for name, how, col in items:
+def rows(y, items, h=48, gap=10, mark=True):
+    """Lista pasków nazwa + opis (+ opcjonalny dopisek po prawej) z ptaszkiem albo bez."""
+    for name, how, col, *ref in items:
         box(48, y - h + 8, W - 96, h, white, EDGE)
         c.setFillColor(col)
         c.roundRect(48, y - h + 8, 5, h, 2.5, stroke=0, fill=1)
         text(68, y - 9, name, 12, "B", INK)
-        wrap(68, y - 26, how, W - 160, 9.5)
-        check(W - 78, y - h / 2 + 8, col)
+        if ref:
+            text(W - 96, y - 9, ref[0], 8.5, "B", col, "r")
+        wrap(68, y - 26, how, W - 170, 9.5)
+        if mark:
+            check(W - 78, y - h / 2 + 8, col)
         y -= h + gap
     return y
 
 
+def sections(x, y, parts, width, size):
+    """Bloki „ETYKIETA” + tekst jeden pod drugim (przed / teraz / dlaczego); zwraca y pod ostatnim."""
+    for label, body in parts:
+        text(x, y, label, 7.5, "B", ACCENT)
+        y = wrap(x, y - 11, body, width, size, color=INK if label == "TERAZ" else SLATE) - 5
+    return y
+
+
 def cards(y, items, h=112, size=9.5):
-    """Karty w jednym rzędzie: (tytuł, opis, kolor)."""
+    """Karty w jednym rzędzie: (tytuł, kolor, opis albo lista sekcji (etykieta, tekst))."""
     n = len(items)
     cw = (W - 96 - (n - 1) * 14) / n
-    for i, (name, desc, col) in enumerate(items):
+    for i, (name, col, body) in enumerate(items):
         x = 48 + i * (cw + 14)
         box(x, y - h, cw, h + 8, white, EDGE)
         c.setFillColor(col)
         c.roundRect(x, y - h, cw, 4, 2, stroke=0, fill=1)
         text(x + 14, y - 16, name, 13, "B", col)
-        wrap(x + 14, y - 36, desc, cw - 28, size)
+        if isinstance(body, str):
+            wrap(x + 14, y - 36, body, cw - 28, size)
+        else:
+            sections(x + 14, y - 36, body, cw - 28, size)
     return y - h - 22
 
 
@@ -158,6 +173,22 @@ def dark_page():
     c.rect(0, 0, W, H, stroke=0, fill=1)
 
 
+def table(y, header, data, xs, rh=25, size=9.5, bold_cols=()):
+    """Tabela w białej ramce: nagłówek + wiersze w paski; xs = lewe krawędzie kolumn."""
+    n = len(data) + 1
+    box(48, y - n * rh + 4, W - 96, n * rh + 4, white, EDGE)
+    for x, h in zip(xs, header):
+        text(x, y - 12, h, 8, "B", ACCENT)
+    for i, row in enumerate(data, start=1):
+        yy = y - i * rh
+        if i % 2 == 0:
+            c.setFillColor(STRIPE)
+            c.rect(49, yy - rh + 5, W - 98, rh, stroke=0, fill=1)
+        for j, (x, cell) in enumerate(zip(xs, row)):
+            text(x, yy - 12, cell, size, "B" if j in bold_cols else "R", INK if cell != "—" else SLATE)
+    return y - n * rh
+
+
 # ---------------------------------------------------------------- 1. tytuł
 dark_page()
 c.setFillColor(ACCENT)
@@ -170,38 +201,56 @@ c.setStrokeColor(AMBER)
 c.setLineWidth(3)
 c.line(56, 176, 56 + 60, 176)
 text(56, 142, "L7. Elementy bezpieczeństwa (kod i konfiguracja)", 13, "B", white)
-text(56, 120, "Flask + Caddy  ·  Cloudflare  ·  OCI  ·  Suricata  ·  questlog.com.pl", 10, "R", SLATE)
+text(56, 120, "Co zmieniłem, dlaczego i jak to działa  ·  questlog.com.pl", 10, "R", SLATE)
 c.showPage()
 
 # ------------------------------------------------- 2. wymagania i realizacja
 y = slide("Wymagania zadania", "co było do zrobienia")
 rows(y, [
     ("Bezpieczeństwo w kodzie", "Polityka haseł, blokada konta, limity żądań, sesje z unieważnianiem, log zdarzeń "
-     "bezpieczeństwa", ACCENT),
+     "bezpieczeństwa", ACCENT, "slajdy 5–6"),
     ("Konfiguracja aplikacji", "TLS na każdym odcinku połączenia, nagłówki bezpieczeństwa, limity i timeouty, "
-     "twarde warunki trybu produkcyjnego", TEAL),
+     "twarde warunki trybu produkcyjnego", TEAL, "slajd 7"),
     ("Konfiguracja środowiska", "Cloudflare: WAF, CDN, Anti-DDoS, rate limit (IPS); Suricata na VM (IDS); "
-     "zapory OCI tylko dla Cloudflare", AMBER),
-    ("Implementacja i prezentacja", "Wszystko działa na produkcji, sprawdzone testami z zewnątrz; ten deck "
-     "i pokaz na żywo", LILAC),
+     "zapory OCI tylko dla Cloudflare", AMBER, "slajdy 8–10"),
+    ("Implementacja i prezentacja", "Wszystko działa na produkcji, sprawdzone testami z zewnątrz i w CI; ten deck "
+     "i pokaz na żywo", LILAC, "slajdy 11–13"),
 ], h=50)
 c.showPage()
 
-# ------------------------------------------------------ 3. ścieżka ruchu
-y = slide("Ścieżka żądania", "każda warstwa ma własną ochronę")
+# ------------------------------------------------- 3. przed → po
+y = slide("L7 w skrócie: przed → po", "co się zmieniło")
+table(y, ["OBSZAR", "PRZED L7", "PO L7"], [
+    ("Hasła", "min. 6 znaków, bez górnej granicy", "10–128 znaków, hash atrapy dla nieznanego loginu"),
+    ("Logowanie", "dowolnie wiele prób", "blokada 5 prób / 15 min + limity flask-limiter"),
+    ("Sesje", "JWT na 7 dni, nie do unieważnienia", "JWT 24 h + tabela sessions, wylogowanie w bazie"),
+    ("Log bezpieczeństwa", "brak", "zdarzenia jako JSON na stdout"),
+    ("IP klienta", "Flask widział adres proxy", "CF-Connecting-IP → Caddy → ProxyFix"),
+    ("Caddy", "nagłówki z L6", "+ HSTS, COOP/CORP, body 128 KB, timeouty"),
+    ("Baza (Neon)", "TLS zależny od DATABASE_URL", "bez sslmode=require backend nie startuje"),
+    ("Brzeg sieci", "rekord A prosto na LB, Let's Encrypt", "proxy Cloudflare: WAF, rate limit, DDoS, CDN"),
+    ("Zapory OCI", "LB otwarty dla całego internetu", "443 tylko z Cloudflare, SSH z jednego adresu"),
+    ("IDS", "brak", "Suricata 8 na obu VM"),
+], [66, 210, 420], rh=22, size=9, bold_cols=(0,))
+c.showPage()
+
+# ------------------------------------------------------ 4. ścieżka ruchu
+y = slide("Ścieżka żądania po L7", "każda warstwa ma własną ochronę")
 nodes = [
-    ("Klient", "przeglądarka", ["HTTPS (TLS 1.2+)", "HSTS, CSP"], SLATE),
-    ("Cloudflare", "brzeg sieci", ["WAF + rate limit", "Anti-DDoS, CDN"], AMBER),
-    ("LB OCI", "138.2.185.106", ["nsg-lb: tylko IP", "Cloudflare, cert", "Origin CA"], ACCENT),
-    ("VM ×2", "Caddy → Flask", ["nsg-app: tylko z LB", "Suricata (IDS)", "kod: sesje, limity"], TEAL),
-    ("Neon", "PostgreSQL", ["sslmode=require", "wymuszane przy", "starcie"], LILAC),
+    ("Klient", "przeglądarka", ["HTTPS (TLS 1.2+)", "HSTS, CSP"], SLATE, False),
+    ("Cloudflare", "brzeg sieci", ["WAF + rate limit", "Anti-DDoS, CDN"], AMBER, True),
+    ("LB OCI", "138.2.185.106", ["nsg-lb: tylko IP", "Cloudflare, cert", "Origin CA"], ACCENT, True),
+    ("VM ×2", "Caddy → Flask", ["nsg-app: tylko z LB", "Suricata (IDS)", "kod: sesje, limity"], TEAL, True),
+    ("Neon", "PostgreSQL", ["sslmode=require", "wymuszane przy", "starcie"], LILAC, True),
 ]
 bw, gap = 108, 21
-for i, (name, sub, prot, col) in enumerate(nodes):
+for i, (name, sub, prot, col, new) in enumerate(nodes):
     x = 48 + i * (bw + gap)
     box(x, 196, bw, 52, white, col, lw=1.6)
     text(x + bw / 2, 228, name, 12, "B", INK, "c")
     text(x + bw / 2, 210, sub, 7.8, "R", SLATE, "c")
+    if new:
+        text(x + bw - 4, 252, "zmiany w L7", 7, "B", AMBER, "r")
     if i < len(nodes) - 1:
         arrow(x + bw + 2, 222, x + bw + gap - 2, 222)
     yy = 178
@@ -211,43 +260,55 @@ for i, (name, sub, prot, col) in enumerate(nodes):
 c.setStrokeColor(HexColor("#d6cbf2"))
 c.setLineWidth(1)
 c.setDash(3, 3)
-c.roundRect(300, 126, 248, 132, 8, stroke=1, fill=0)
+c.roundRect(300, 120, 248, 146, 8, stroke=1, fill=0)
 c.setDash()
-text(308, 262, "OCI Frankfurt  ·  Always Free", 7.5, "B", LILAC)
+text(308, 131, "OCI Frankfurt  ·  Always Free", 7.5, "B", LILAC)
 bullets(98, [
     "Wejście prosto na IP load balancera kończy się timeoutem — jedyna droga do aplikacji prowadzi przez Cloudflare.",
-    "Szyfrowane są wszystkie odcinki z internetu; ruch LB → VM idzie w prywatnej sieci VCN, gdzie widzi go Suricata.",
-], AMBER, size=10)
+    "Szyfrowane są wszystkie odcinki z internetu. LB → VM celowo bez TLS: prywatna sieć VCN, a Suricata "
+    "widzi dzięki temu treść żądań.",
+], AMBER, size=10, gap=5)
 c.showPage()
 
-# ------------------------------------------------------ 4. kod: logowanie
-y = slide("Kod: logowanie i konta", "code/backend/app")
+# ------------------------------------------------------ 5. kod: logowanie
+y = slide("Kod: logowanie i konta", "routes_auth.py  ·  validation.py  ·  extensions.py")
 y = cards(y, [
-    ("Hasła", "10–128 znaków, hash werkzeug (scrypt z solą). Przy nieznanym loginie liczony jest hash atrapy, "
-     "więc czas odpowiedzi nie zdradza, czy konto istnieje.", ACCENT),
-    ("Blokada konta", "5 nieudanych prób = konto zablokowane na 15 minut. Licznik w bazie, więc działa na obu "
-     "VM i przetrwa restart.", AMBER),
-    ("Limity żądań", "flask-limiter: logowanie 10/min, rejestracja 10/h, reszta API 300/min z jednego IP. "
-     "Odpowiedź 429 z czytelnym komunikatem.", TEAL),
-], h=118)
+    ("Hasła", ACCENT, [
+        ("PRZED", "min. 6 znaków; nieznany login kończył sprawdzanie od razu, bez liczenia hasha."),
+        ("TERAZ", "10–128 znaków; dla nieznanego loginu liczony jest hash atrapy (DUMMY_HASH)."),
+        ("DLACZEGO", "krótkie hasła łatwo złamać, a czas odpowiedzi zdradzał, czy konto istnieje."),
+    ]),
+    ("Blokada konta", AMBER, [
+        ("PRZED", "dowolnie wiele prób na jedno konto."),
+        ("TERAZ", "5. błędne hasło blokuje konto na 15 min (failed_logins, locked_until); kolejna próba → 429."),
+        ("DLACZEGO", "zgadywanie z wielu IP omija limity per IP; licznik w bazie działa na obu VM."),
+    ]),
+    ("Limity żądań", TEAL, [
+        ("PRZED", "brak."),
+        ("TERAZ", "flask-limiter: logowanie 10/min, rejestracja 10/h, reszta API 300/min z jednego IP."),
+        ("DLACZEGO", "zalewanie API i masowa rejestracja. Liczniki są w pamięci procesu, więc na "
+                     "logowaniu twardy limit trzyma Cloudflare."),
+    ]),
+], h=172, size=8.5)
 bullets(y, [
-    "Adres IP klienta pochodzi z CF-Connecting-IP (Caddy + ProxyFix) — podrobiony X-Forwarded-For nie obejdzie "
-    "limitów ani blokady.",
-    "Odpowiedzi API mają Cache-Control: no-store; body żądania ograniczone do 64 KB w Flasku i 128 KB w Caddy.",
-], ACCENT, size=10)
+    "Przed L7 Flask widział adres proxy, nie klienta — limit per IP objąłby wszystkich naraz. Teraz Caddy bierze "
+    "CF-Connecting-IP (ufa tylko sieci 10.0.0.0/16), a Flask czyta go przez ProxyFix (1 hop).",
+], ACCENT, size=9.5)
 c.showPage()
 
-# ------------------------------------------------------ 5. kod: sesje i monitoring
-y = slide("Kod: sesje i monitoring", "tabela sessions + log zdarzeń")
-box(48, y - 196, 300, 204, white, EDGE)
+# ------------------------------------------------------ 6. kod: sesje i monitoring
+y = slide("Kod: sesje i monitoring", "auth.py  ·  tabela sessions  ·  security_log.py")
+box(48, y - 184, 310, 192, white, EDGE)
 text(66, y - 16, "Sesje po stronie serwera", 13, "B", ACCENT)
-bullets(y - 40, [
-    "Każdy token JWT ma identyfikator sesji (jti) sprawdzany w bazie przy każdym żądaniu.",
-    "Wylogowanie unieważnia sesję w bazie, a nie tylko usuwa token w przeglądarce.",
-    "Strona „Sesje”: IP, przeglądarka, ostatnia aktywność; „wyloguj” jedną lub wszystkie inne.",
-    "Token wygasa po 24 h; stare sesje są czyszczone przy logowaniu.",
-], ACCENT, x=72, width=260, size=9.5)
-code_box(372, y + 8, 300, [
+sections(66, y - 36, [
+    ("PRZED", "JWT ważny 7 dni i bezstanowy: wylogowanie tylko kasowało token w przeglądarce, a skradziony "
+              "token działał do wygaśnięcia."),
+    ("TERAZ", "token niesie jti = id wiersza w sessions; każde żądanie sprawdza revoked_at IS NULL. "
+              "TTL 24 h, strona „Sesje” (IP, przeglądarka, last_seen): wyloguj jedną lub wszystkie inne."),
+    ("JAK", "wylogowanie = UPDATE sessions SET revoked_at = now(), token od razu przestaje działać; "
+            "last_seen zapisywany najwyżej raz na minutę; stare sesje usuwane przy logowaniu."),
+], 274, 8.8)
+code_box(378, y + 8, 294, [
     ('{"event":"login_failed","ip":"84.40.239.174"}', white),
     ('{"event":"account_locked","user_id":7,', white),
     ('   "minutes":15}', white),
@@ -255,60 +316,72 @@ code_box(372, y + 8, 300, [
     ('{"event":"denied","status":429,', white),
     ('   "path":"/api/auth/login"}', white),
 ], title="LOG BEZPIECZEŃSTWA (JSON NA STDOUT)")
-bullets(y - 120, [
-    "Zdarzenia: rejestracja, logowanie udane i nieudane, blokada, wylogowanie, unieważnienie sesji, każde 401/403/429.",
-    "Jedna linia JSON — gotowe do docker logs | jq albo systemu SIEM.",
-], TEAL, x=378, width=280, size=9.5)
+bullets(y - 118, [
+    "Przed L7 nie było śladu prób logowania. Teraz: rejestracja, logowanie udane i nieudane, blokada, "
+    "wylogowanie, unieważnienie sesji, a w after_request każde 401/403/429.",
+    "Jedna linia JSON z IP i czasem — docker logs | jq albo SIEM.",
+    "21 nowych testów (test_security.py, test_sessions.py) w CI.",
+], TEAL, x=384, width=280, size=9, gap=5)
 c.showPage()
 
-# ------------------------------------------------------ 6. konfiguracja aplikacji
-y = slide("Konfiguracja aplikacji", "połączenie i nagłówki")
+# ------------------------------------------------------ 7. konfiguracja aplikacji
+y = slide("Konfiguracja aplikacji", "Caddyfile  ·  config.py  ·  entrypoint.sh")
 seg = [("przeglądarka → Cloudflare", "cert Cloudflare, TLS 1.2+, Always HTTPS", AMBER),
-       ("Cloudflare → LB", "Full (strict), cert Origin CA do 2041", ACCENT),
+       ("Cloudflare → LB", "Full (strict): CF sprawdza cert Origin CA", ACCENT),
        ("LB → VM", "prywatna sieć VCN, tylko z nsg-lb", TEAL),
-       ("backend → Neon", "TLS wymuszony: bez sslmode=require nie startuje", LILAC)]
+       ("backend → Neon", "bez sslmode=require nie startuje", LILAC)]
 for i, (top, bot, col) in enumerate(seg):
     x = 48 + i * 160
-    box(x, y - 58, 148, 66, white, EDGE)
+    box(x, y - 44, 148, 52, white, EDGE)
     c.setFillColor(col)
-    c.roundRect(x, y - 58, 148, 4, 2, stroke=0, fill=1)
+    c.roundRect(x, y - 44, 148, 4, 2, stroke=0, fill=1)
     text(x + 12, y - 12, top, 9.5, "B", INK)
-    wrap(x + 12, y - 28, bot, 126, 8.5)
-y -= 84
-col_l = [("Content-Security-Policy", "tylko własne skrypty, bez inline"), ("Strict-Transport-Security", "1 rok"),
-         ("X-Frame-Options", "DENY (clickjacking)"), ("X-Content-Type-Options", "nosniff")]
-col_r = [("Referrer / Permissions-Policy", "bez kamery, mikrofonu, GPS"), ("COOP / CORP", "same-origin"),
-         ("Server", "usunięty nagłówek"), ("Caddy", "body 128 KB, timeouty 10/15/30 s")]
-for cx, items in ((48, col_l), (372, col_r)):
-    yy = y
-    for k, v in items:
-        check(cx + 2, yy + 3, TEAL, 6)
-        text(cx + 18, yy, k, 10, "B", INK)
-        text(cx + 18, yy - 13, v, 9, "R", SLATE)
-        yy -= 32
-text(48, 40, "Produkcja nie wystartuje z domyślnym SECRET_KEY ani krótszym niż 32 znaki (APP_ENV=production).",
-     9.5, "B", ACCENT)
+    wrap(x + 12, y - 26, bot, 126, 8.3)
+y -= 66
+text(48, y, "NOWE W L7", 8, "B", ACCENT)
+text(452, y, "Z L6, BEZ ZMIAN (SKAN ZAP W CI)", 8, "B", SLATE)
+yy = y - 18
+for k, v in [("HSTS, 1 rok", "przeglądarka nie zejdzie do HTTP"),
+             ("COOP / CORP: same-origin", "obca strona nie sięgnie do okna i zasobów"),
+             ("body 128 KB (Caddy), 64 KB (Flask)", "duże żądania nie zapchają pamięci"),
+             ("timeouty: nagłówki 10 s, body 15 s, odpowiedź 30 s", "powolne połączenia (Slowloris) nie "
+              "zajmą serwera"),
+             ("Cache-Control: no-store na /api", "dane konta nie zostają w cache"),
+             ("APP_ENV=production", "SECRET_KEY własny i ≥ 32 znaki, inaczej start się przerywa — "
+              "tym kluczem podpisywane są JWT")]:
+    check(50, yy + 3, TEAL, 6)
+    text(66, yy, k, 9, "B", INK)
+    yy = wrap(66, yy - 11, v, 360, 8.5) - 5
+yy = y - 18
+for k in ["Content-Security-Policy", "X-Frame-Options: DENY", "X-Content-Type-Options", "Referrer-Policy",
+          "Permissions-Policy", "nagłówek Server usunięty"]:
+    text(452, yy, "·  " + k, 9, "R", SLATE)
+    yy -= 16
 c.showPage()
 
-# ------------------------------------------------------ 7. Cloudflare
+# ------------------------------------------------------ 8. Cloudflare
 y = slide("Środowisko: Cloudflare", "plan Free  ·  WAF, IPS, Anti-DDoS, CDN")
+wrap(48, y, "Przed L7: rekord A wskazywał prosto na LB z certyfikatem Let's Encrypt — nic nie filtrowało ruchu "
+     "przed serwerem. Teraz domena idzie przez proxy Cloudflare (SSL Full strict).", W - 96, 10, color=INK)
+y -= 36
 y = cards(y, [
-    ("WAF", "Cloudflare Free Managed Ruleset + reguła xss-sqli-query: <script, union select, ' or '1'='1 "
-     "w parametrach adresu → 403.", AMBER),
-    ("Rate limit", "login-limit: więcej niż 5 × POST /api/auth/login w 10 s z jednego IP → 429 na 10 s, "
-     "zanim żądanie dotrze do serwera.", ACCENT),
-    ("Anti-DDoS", "Ochrona L3/4/7 stale włączona; serwer nie ma publicznego wejścia z pominięciem "
-     "Cloudflare.", RED),
-    ("CDN", "/assets/* z Cache-Control: immutable — pliki JS i CSS serwowane z cache Cloudflare "
-     "(cf-cache-status: HIT).", TEAL),
-], h=128, size=9)
+    ("WAF", AMBER, "Free Managed Ruleset + własna reguła xss-sqli-query: <script, union select, ' or '1'='1 "
+     "w adresie → 403."),
+    ("Rate limit", ACCENT, "login-limit: więcej niż 5 × POST /api/auth/login w 10 s z jednego IP → 429 przez "
+     "10 s, zanim żądanie dotrze do serwera."),
+    ("Anti-DDoS", RED, "Ochrona L3/4/7 stale włączona. Działa tylko dlatego, że serwer nie ma wejścia "
+     "z pominięciem Cloudflare (slajd 9)."),
+    ("CDN", TEAL, "/assets/* z Cache-Control: immutable (pliki z hashem w nazwie) → serwowane z cache "
+     "Cloudflare (cf-cache-status: HIT)."),
+], h=112, size=8.6)
 bullets(y, [
-    "IPS = Cloudflare: stoi w ścieżce ruchu i blokuje. IDS = Suricata na VM: wykrywa i alarmuje (następny slajd).",
-    "Konfiguracja przez API z tokenem ograniczonym do jednej strefy; HSTS zostaje w Caddy, żeby nie dublować.",
-], AMBER, size=10)
+    "IPS = Cloudflare: stoi w ścieżce ruchu i blokuje. IDS = Suricata na VM: tylko wykrywa i alarmuje (slajd 10).",
+    "HSTS wysyła tylko Caddy, Cloudflare go nie dokłada (jedna wartość w jednym miejscu). Konfiguracja przez API "
+    "tokenem ograniczonym do jednej strefy.",
+], AMBER, size=9.5, gap=5)
 c.showPage()
 
-# ------------------------------------------------------ 8. sieć OCI
+# ------------------------------------------------------ 9. sieć OCI
 y = slide("Środowisko: zapory OCI", "Network Security Groups")
 box(48, y - 120, 300, 128, white, EDGE)
 text(66, y - 18, "Przed", 15, "B", SLATE)
@@ -321,24 +394,30 @@ box(372, y - 120, 300, 128, white, TEAL, lw=1.6)
 text(390, y - 18, "Po", 15, "B", TEAL)
 yy = y - 44
 for r in ["nsg-lb: tylko 443 z 15 zakresów Cloudflare", "nsg-app: port 80 tylko z nsg-lb",
-          "SSH tylko z 2 adresów IP", "cert Origin CA ważny do 2041"]:
+          "SSH tylko z jednego adresu (domowego)", "cert Origin CA ważny do 2041"]:
     text(390, yy, "·  " + r, 10, "R", INK)
     yy -= 18
 bullets(y - 148, [
-    "Bezpośrednie wejście na 138.2.185.106 (porty 80 i 443) kończy się timeoutem — pakiet nie dociera nawet do LB.",
-    "Zakresy z cloudflare.com/ips-v4; zmiana listy przez Cloudflare wymaga aktualizacji reguł (rzadko).",
-], TEAL, size=10)
+    "Dlaczego tylko Cloudflare: inaczej wystarczy wejść prosto na IP serwera, żeby ominąć WAF, rate limit i "
+    "Anti-DDoS. Teraz bezpośrednie połączenie kończy się timeoutem — pakiet nie dociera nawet do LB.",
+    "Dlaczego Origin CA: odnowienie Let's Encrypt wymaga wejścia z internetu, które teraz jest zamknięte. "
+    "Origin CA jest ważny do 2041 i ufa mu tylko Cloudflare.",
+    "Zakresy z cloudflare.com/ips-v4; gdy Cloudflare zmieni listę, reguły trzeba zaktualizować ręcznie.",
+], TEAL, size=9.5, gap=5)
 c.showPage()
 
-# ------------------------------------------------------ 9. Suricata
+# ------------------------------------------------------ 10. Suricata
 y = slide("Środowisko: Suricata (IDS)", "tools/suricata  ·  usługa w docker-compose.cloud.yml")
 bullets(y, [
-    "Suricata 8 na obu VM dostaje kopię ruchu z karty sieciowej (af-packet) i tylko alarmuje.",
-    "TLS kończy się na LB, więc widzi odszyfrowany HTTP — także body, którego WAF nie sprawdza.",
-    "Reguły: ET Open (~53 tys., odświeżane przy starcie) + 4 własne: SQLi i XSS w body API, .env/.git, "
-    "ruch z pominięciem Cloudflare.",
-    "W logu tylko alerty, bez treści żądań (w body logowania jest hasło); IP klienta z CF-Connecting-IP.",
-], ACCENT, width=300, size=9.5)
+    "Suricata 8 na obu VM dostaje kopię ruchu z karty sieciowej (af-packet) i tylko alarmuje — blokowanie "
+    "zostaje w Cloudflare.",
+    "Dlaczego na VM: TLS kończy się na LB, więc Suricata widzi odszyfrowany HTTP — także body, którego "
+    "WAF nie sprawdza.",
+    "Reguły: ET Open (~53 tys., suricata-update przy starcie) + 4 własne w local.rules: SQLi i XSS w body "
+    "API, .env/.git, ruch bez CF-Connecting-IP (ominięcie Cloudflare).",
+    "eve.json: tylko alerty, bez treści żądań (w body logowania jest hasło); IP klienta z CF-Connecting-IP. "
+    "Wyłączone reguły szumu (checksum offload, agent OCI, DNS do Neona).",
+], ACCENT, width=310, size=9.3, gap=5)
 code_box(392, y + 8, 280, [
     ("sid 1000001  QUESTLOG SQLi w body", AMBER),
     ("  klient 84.40.239.174", white),
@@ -350,47 +429,73 @@ code_box(392, y + 8, 280, [
     ("sid 1000003  .env/.git  + ET INFO", AMBER),
     ("  GET /.env", white),
 ], title="ALERTY Z PRODUKCJI (EVE.JSON, APP1)")
-text(48, 52, "Atak przeszedł przez WAF (body), aplikacja go odrzuciła, a Suricata zapisała ślad — obrona warstwowa.",
+text(48, 96, "Atak przeszedł przez WAF (body), aplikacja go odrzuciła, a Suricata zapisała ślad — obrona warstwowa.",
      9.5, "B", ACCENT)
 c.showPage()
 
-# ------------------------------------------------------ 10. weryfikacja
+# ------------------------------------------------------ 11. weryfikacja
 y = slide("Weryfikacja na produkcji", "testy z zewnątrz, 26.11.2026")
-tests = [
-    ("Strona przez Cloudflare", "200, server: cloudflare"),
-    ("curl prosto na IP LB (80, 443)", "timeout"),
-    ("?q=<script>, UNION SELECT, ' or '1'='1", "403 (WAF)"),
-    ("Zwykłe zapytanie", "200 — brak fałszywych alarmów"),
-    ("6 × logowanie w 10 s", "5 × 401, potem 429 (Cloudflare 1015)"),
-    ("Plik /assets/*.js drugi raz", "cf-cache-status: HIT"),
-    ("SQLi / XSS w body", "401 / 400 + alert Suricaty z IP klienta"),
-    ("Podrobiony X-Forwarded-For", "ignorowany — liczy się CF-Connecting-IP"),
-]
-rh = 25
-box(48, y - len(tests) * rh + 4, W - 96, len(tests) * rh + 4, white, EDGE)
-for i, (t, r) in enumerate(tests):
-    yy = y - i * rh
-    if i % 2:
-        c.setFillColor(HexColor("#f7f5fd"))
-        c.rect(49, yy - rh + 5, W - 98, rh, stroke=0, fill=1)
-    text(66, yy - 12, t, 10, "R", INK)
-    text(400, yy - 12, r, 10, "B", INK)
-    check(W - 74, yy - 9, TEAL, 6)
+y = table(y, ["TEST", "WYNIK", "KTÓRA WARSTWA ZADZIAŁAŁA"], [
+    ("Strona przez Cloudflare", "200, server: cloudflare", "Cloudflare (ruch idzie przez CF)"),
+    ("curl prosto na IP LB (80, 443)", "timeout", "OCI: zapora nsg-lb"),
+    ("?q=<script>, UNION SELECT, ' or '1'='1", "403", "Cloudflare WAF"),
+    ("Zwykłe zapytanie", "200 — brak fałszywych alarmów", "—"),
+    ("6 × logowanie w 10 s", "5 × 401, potem 429 (CF 1015)", "Cloudflare rate limit"),
+    ("Plik /assets/*.js drugi raz", "cf-cache-status: HIT", "Cloudflare CDN"),
+    ("SQLi / XSS w body", "401 / 400 + alert z IP klienta", "Flask + Suricata"),
+    ("Podrobiony X-Forwarded-For", "ignorowany", "Caddy + Flask (CF-Connecting-IP)"),
+], [66, 300, 490], rh=25, size=9.3, bold_cols=(1,))
+text(48, y - 14, "Do tego w CI przy każdym PR: 21 testów pytest dla haseł, blokady, limitów, sesji i logu.", 9.5,
+     "B", ACCENT)
 c.showPage()
 
-# ------------------------------------------------------ 11. demo
-y = slide("Pokaz na żywo", "kolejność")
+# ------------------------------------------------------ 12. macierz atak × warstwa
+y = slide("Atak → która warstwa zatrzymuje", "obrona warstwowa w jednej tabeli")
+table(y, ["ATAK", "CLOUDFLARE", "OCI (NSG)", "CADDY", "FLASK", "SURICATA"], [
+    ("Zgadywanie hasła", "limit 5 / 10 s", "—", "—", "blokada + limit", "—"),
+    ("Kradzież tokenu", "—", "—", "CSP (bez XSS)", "unieważn. sesji", "—"),
+    ("XSS / SQLi w adresie", "WAF → 403", "—", "CSP", "SQL z param.", "—"),
+    ("XSS / SQLi w body", "—", "—", "CSP", "walidacja, param.", "alert 1000001/2"),
+    ("Ominięcie Cloudflare", "—", "timeout", "—", "—", "alert 1000004"),
+    ("DDoS", "Anti-DDoS", "tylko CF", "timeouty, 128 KB", "limit 300/min", "—"),
+    ("Sfałszowany X-Fwd-For", "CF-Conn.-IP", "tylko CF", "bierze CF-IP", "ProxyFix", "—"),
+], [62, 190, 284, 362, 458, 560], rh=28, size=8.8, bold_cols=(0,))
+text(48, 52, "Wyłączenie jednej warstwy nie otwiera drogi — za nią stoi kolejna. Suricata tylko wykrywa (IDS).",
+     9.5, "B", ACCENT)
+c.showPage()
+
+# ------------------------------------------------------ 13. demo
+y = slide("Pokaz na żywo", "kolejność: akcja → oczekiwany wynik")
 rows(y, [
-    ("1. Sesje", "Logowanie w dwóch przeglądarkach → strona „Sesje” → „wyloguj” drugą: tam token przestaje działać",
-     ACCENT),
-    ("2. Blokada konta", "5 złych haseł → komunikat o blokadzie; w logu login_failed i account_locked", AMBER),
-    ("3. WAF i rate limit", "questlog.com.pl/?q=<script> → 403; seria logowań → 429 od Cloudflare", TEAL),
-    ("4. Ominięcie Cloudflare", "curl https://138.2.185.106 → timeout (zapora nsg-lb)", RED),
-    ("5. IDS", "SQLi w body logowania → alert w eve.json z prawdziwym IP klienta", LILAC),
-], h=44, gap=8)
+    ("1. Sesje", "Zaloguj w Chrome i Firefox → Chrome: „Sesje” → „wyloguj” Firefoxa → następne żądanie "
+     "w Firefoksie: 401.", ACCENT),
+    ("2. Blokada konta", "5 × złe hasło co ~3 s (401) → 6. próba: 429 „Zbyt wiele nieudanych prób”; "
+     "docker logs questlog-backend-1 | grep account_locked.", AMBER),
+    ("3. WAF i rate limit", "curl 'https://questlog.com.pl/?q=<script>' → 403; 6 × POST /api/auth/login "
+     "w 10 s → 429 (1015).", TEAL),
+    ("4. Ominięcie Cloudflare", "curl -m 5 -k https://138.2.185.106 → timeout (zapora nsg-lb).", RED),
+    ("5. IDS", "POST /api/auth/login z „union select” w body → 401; tail eve.json (questlog-suricata-1) "
+     "→ sid 1000001 z prawdziwym IP.", LILAC),
+], h=42, gap=6)
+text(48, 40, "Krok 2 z przerwami, bo 6 prób w 10 s zatrzyma wcześniej Cloudflare. Plan B: zrzuty ekranu i slajd 11.",
+     9.5, "B", ACCENT)
 c.showPage()
 
-# ------------------------------------------------------ 12. podziękowanie
+# ------------------------------------------------------ 14. ograniczenia
+y = slide("Ograniczenia", "świadome kompromisy")
+rows(y, [
+    ("Suricata tylko alarmuje", "Niczego nie blokuje, a alerty trzeba przeczytać w eve.json — brak "
+     "automatycznych powiadomień.", AMBER),
+    ("LB → VM bez TLS", "Ruch w prywatnej sieci VCN jest jawny — świadomie, żeby IDS widział treść.", ACCENT),
+    ("Limity Flaska w pamięci procesu", "4 procesy (2 VM × 2 workery) liczą osobno: realnie do 4× luźniej. "
+     "Wspólny Redis by to naprawił.", TEAL),
+    ("Ręczna lista IP Cloudflare", "Gdy Cloudflare zmieni zakresy, reguły nsg-lb trzeba zaktualizować ręcznie.",
+     LILAC),
+    ("Brak 2FA", "Wyciek hasła = dostęp do konta, dopóki właściciel go nie zmieni.", RED),
+], h=44, gap=6, mark=False)
+c.showPage()
+
+# ------------------------------------------------------ 15. podziękowanie
 dark_page()
 c.setFillColor(ACCENT)
 c.circle(80, 70, 120, stroke=0, fill=1)
