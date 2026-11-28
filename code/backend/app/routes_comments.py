@@ -2,6 +2,7 @@ from flask import Blueprint, g, jsonify, request
 
 from .auth import current_user_id, login_required, optional_auth
 from .db import query, query_one
+from .extensions import limiter
 from .validation import ValidationError, clean_str
 from .votes import apply_vote
 
@@ -46,6 +47,7 @@ def list_comments(post_id):
 
 
 @bp.post("/posts/<int:post_id>/comments")
+@limiter.limit("20 per minute")
 @login_required
 def create_comment(post_id):
     if not query_one("SELECT 1 AS x FROM posts WHERE id = %s", (post_id,)):
@@ -112,6 +114,7 @@ def delete_comment(comment_id):
 
 
 @bp.post("/comments/<int:comment_id>/vote")
+@limiter.limit("60 per minute")
 @login_required
 def vote_comment(comment_id):
     comment = query_one("SELECT deleted FROM comments WHERE id = %s", (comment_id,))

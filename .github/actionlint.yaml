@@ -1,0 +1,2 @@
+self-hosted-runner:
+  labels: [app1, app2]

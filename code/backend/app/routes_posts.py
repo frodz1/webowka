@@ -3,6 +3,7 @@ from flask import Blueprint, g, jsonify, request
 from . import config
 from .auth import current_user_id, login_required, optional_auth
 from .db import query, query_one
+from .extensions import limiter
 from .validation import ValidationError, post_fields
 from .votes import apply_vote
 
@@ -77,6 +78,7 @@ def list_tags():
 
 
 @bp.post("/posts")
+@limiter.limit("20 per minute")
 @login_required
 def create_post():
     try:
@@ -134,6 +136,7 @@ def delete_post(post_id):
 
 
 @bp.post("/posts/<int:post_id>/vote")
+@limiter.limit("60 per minute")
 @login_required
 def vote_post(post_id):
     if not query_one("SELECT 1 AS x FROM posts WHERE id = %s", (post_id,)):

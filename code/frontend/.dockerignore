@@ -1,2 +1,14 @@
 node_modules
 dist
+**/.git
+**/.DS_Store
+**/.env
+**/.env.*
+**/.neon
+**/.netrc
+**/.npmrc
+**/.ssh
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx

@@ -1,0 +1,15 @@
+#cloud-config
+# Wklej jako "Cloud-init script" przy tworzeniu instancji w OCI (Advanced options -> Management).
+# Sekrety dostarcza GitHub Actions ze środowiska production.
+package_update: true
+packages: [docker.io, docker-compose-v2, git]
+runcmd:
+  # Obrazy OCI mają własne reguły iptables - bez tego port 80 jest zamknięty NA MASZYNIE,
+  # nawet gdy Security List w konsoli go przepuszcza.
+  - iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+  - netfilter-persistent save || true
+  - systemctl enable --now docker
+  - git clone https://github.com/frodz1/webowka.git /opt/questlog
+  # Pipeline tworzy tools/.env z sekretami i IMAGE_TAG oraz uruchamia kontenery.
+  # Zarejestruj runner tej maszyny (patrz tools/README.md, sekcja CI/CD) i wywołaj deploy.
+  - echo "CLOUD-INIT OK" > /var/log/questlog-ready

@@ -1,0 +1,80 @@
+# Wariant cloud: bez lokalnej bazy (DATABASE_URL wskazuje na zarządzanego Postgresa)
+# i bez TLS-a (certyfikat stoi na load balancerze).
+# Obrazy są budowane i testowane w CI, a stąd tylko pobierane z GHCR (tag = SHA commita,
+#   zapisywany przez pipeline w tools/.env jako IMAGE_TAG):
+#   docker compose -f docker-compose.cloud.yml pull && docker compose -f docker-compose.cloud.yml up -d
+name: questlog
+
+services:
+  backend:
+    image: ghcr.io/frodz1/questlog-backend:${IMAGE_TAG:?brak IMAGE_TAG w tools/.env (ustawia go pipeline)}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    mem_limit: ${BACKEND_MEM_LIMIT:-384m}
+    pids_limit: ${BACKEND_PIDS_LIMIT:-128}
+    logging:
+      driver: json-file
+      options:
+        max-size: "${CONTAINER_LOG_MAX_SIZE:-10m}"
+        max-file: "${CONTAINER_LOG_MAX_FILES:-3}"
+    environment:
+      APP_ENV: production
+      PROXY_HOPS: 1
+      DATABASE_URL: ${DATABASE_URL:?ustaw DATABASE_URL w tools/.env}
+      SECRET_KEY: ${SECRET_KEY:?ten sam na wszystkich instancjach, inaczej tokeny nie przejdą}
+      # 2 workery x pula 10 = 20 połączeń na instancję; pilnuj limitu bazy.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+
+  frontend:
+    image: ghcr.io/frodz1/questlog-frontend:${IMAGE_TAG:?brak IMAGE_TAG w tools/.env (ustawia go pipeline)}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /data:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=10001,gid=10001
+      - /config:rw,noexec,nosuid,nodev,size=4m,mode=0700,uid=10001,gid=10001
+    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
+    pids_limit: ${FRONTEND_PIDS_LIMIT:-128}
+    logging:
+      driver: json-file
+      options:
+        max-size: "${CONTAINER_LOG_MAX_SIZE:-10m}"
+        max-file: "${CONTAINER_LOG_MAX_FILES:-3}"
+    depends_on:
+      - backend
+    ports:
+      - "80:8080"
+
+  # IDS (L7): Suricata dostaje kopię ruchu z karty VM (af-packet) i tylko alarmuje, niczego
+  # nie blokuje (blokuje WAF Cloudflare). Reguły: ET Open + suricata/local.rules.
+  # Alerty: sudo docker exec questlog-suricata-1 tail -f /var/log/suricata/eve.json
+  suricata:
+    image: jasonish/suricata:8.0.8
+    restart: unless-stopped
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE]
+    mem_limit: 1g
+    volumes:
+      - ./suricata:/questlog:ro
+      - suricata-rules:/var/lib/suricata
+      - suricata-logs:/var/log/suricata
+    # Własny start: najpierw odświeżenie reguł (przy błędzie zostają poprzednie z wolumenu).
+    # ponytail: eve.json bez rotacji - same alerty, rośnie wolno; logrotate, gdy zacznie ważyć.
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        cp -an /etc/suricata.dist/. /etc/suricata/ &&
+        { suricata-update -q --no-reload --local /questlog/local.rules
+        --disable-conf /questlog/disable.conf || echo "suricata-update nieudane"; } &&
+        exec /docker-entrypoint.sh --af-packet=${SURICATA_IFACE:-enp0s6}
+        --include /questlog/questlog.yaml
+        --set vars.address-groups.EXTERNAL_NET=any --set stats.enabled=no
+
+volumes:
+  suricata-rules:
+  suricata-logs:

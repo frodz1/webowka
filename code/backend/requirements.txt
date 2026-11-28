@@ -1,5 +1,6 @@
 Flask==3.1.*
+Flask-Limiter==3.*
 psycopg[binary,pool]==3.2.*
-PyJWT==2.10.*
+PyJWT==2.15.*
 gunicorn==23.0.*
-pytest==8.3.*
+pytest==9.0.*

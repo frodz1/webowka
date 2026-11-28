@@ -1,14 +1,46 @@
 {
 	auto_https off
 	admin off
+	servers {
+		trusted_proxies static 10.0.0.0/16
+		# Adres klienta: CF-Connecting-IP (ustawia Cloudflare), a bez niego prawy, niezaufany wpis z
+		# X-Forwarded-For (lewy klient może podrobić). Nagłówkowi CF ufamy, bo nsg-lb wpuszcza tylko Cloudflare.
+		trusted_proxies_strict
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+		timeouts {
+			read_header 10s
+			read_body 15s
+			write 30s
+			idle 2m
+		}
+	}
 }
 
-:80 {
+:8080 {
 	encode zstd gzip
+
+	request_body {
+		max_size 128KB
+	}
+
+	# Nagłówki bezpieczeństwa (wymagane przez skan DAST ZAP w CI).
+	header {
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
+		-Server
+	}
 
 	# API: przekazujemy do backendu (Flask) w sieci Dockera.
 	handle /api/* {
-		reverse_proxy backend:5000
+		reverse_proxy backend:5000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Zasoby z hashem w nazwie: długi cache, brak pliku = 404 (bez fallbacku SPA).

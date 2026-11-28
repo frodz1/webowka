@@ -1,0 +1,20 @@
+%YAML 1.1
+---
+# Dołączane do domyślnego suricata.yaml (--include): podmienia całą listę outputs.
+# Zapisujemy tylko alerty (bez flow/dns/tls), żeby log nie puchł; payload i body nie
+# trafiają do logu (body logowania zawiera hasło).
+# Ruch przychodzi przez Cloudflare -> LB, więc adres źródłowy pakietu to LB; prawdziwy
+# adres klienta dopisujemy do alertu z nagłówka CF-Connecting-IP (pole "xff").
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            tagged-packets: no
+            xff:
+              enabled: yes
+              mode: extra-data
+              deployment: forward
+              header: CF-Connecting-IP

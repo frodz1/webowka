@@ -1,5 +1,7 @@
 import re
 
+from . import config
+
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 TAG_RE = re.compile(r"^[\w-]{1,32}$")
@@ -27,6 +29,14 @@ def clean_str(data, key, required=False, max_len=None, min_len=0, label=None):
     if max_len and len(value) > max_len:
         raise ValidationError(f"Pole „{label}” może mieć maksymalnie {max_len} znaków.")
     return value
+
+
+def check_password(password):
+    if not isinstance(password, str) or len(password) < config.PASSWORD_MIN_LEN:
+        raise ValidationError(f"Hasło musi mieć co najmniej {config.PASSWORD_MIN_LEN} znaków.")
+    if len(password) > config.PASSWORD_MAX_LEN:
+        raise ValidationError(f"Hasło może mieć maksymalnie {config.PASSWORD_MAX_LEN} znaków.")
+    return password
 
 
 def post_fields(data):

@@ -30,8 +30,15 @@ function AuthForm({ mode }) {
   }
 
   return (
-    <form className="card form narrow" onSubmit={submit}>
-      <h2>{isRegister ? 'Załóż konto' : 'Zaloguj się'}</h2>
+    <div className="auth">
+    <form className="card form auth-card" onSubmit={submit}>
+      <div className="auth-head">
+        <span className="logo-mark lg" aria-hidden="true">
+          Q
+        </span>
+        <h2>{isRegister ? 'Załóż konto' : 'Witaj ponownie'}</h2>
+        <p className="muted">{isRegister ? 'Dołącz i dziel się ciekawymi znaleziskami.' : 'Zaloguj się, aby głosować i komentować.'}</p>
+      </div>
       {isRegister ? (
         <>
           <label>
@@ -51,13 +58,13 @@ function AuthForm({ mode }) {
       )}
       <label>
         Hasło
-        <input type="password" value={form.password} onChange={set('password')} minLength={isRegister ? 6 : undefined} required />
+        <input type="password" value={form.password} onChange={set('password')} minLength={isRegister ? 10 : undefined} maxLength={isRegister ? 128 : undefined} required />
       </label>
       {error && <p className="error">{error}</p>}
-      <button className="btn btn-primary" disabled={busy}>
+      <button className="btn btn-primary btn-block btn-lg" disabled={busy}>
         {isRegister ? 'Załóż konto' : 'Zaloguj'}
       </button>
-      <p className="muted">
+      <p className="muted auth-foot">
         {isRegister ? (
           <>
             Masz już konto? <Link to="/login" state={location.state}>Zaloguj się</Link>
@@ -69,6 +76,7 @@ function AuthForm({ mode }) {
         )}
       </p>
     </form>
+    </div>
   );
 }
 
