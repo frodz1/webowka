@@ -105,6 +105,8 @@ Pipeline: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
 
 Rollback: `git revert` na `main` – pipeline zbuduje i wdroży poprzednią wersję. Szybciej, bez budowania: na maszynie ustaw w `tools/.env` `IMAGE_TAG=<sha wcześniejszego commita>` i wykonaj `docker compose -f docker-compose.cloud.yml pull && docker compose -f docker-compose.cloud.yml up -d` (obrazy z tagiem SHA zostają w rejestrze).
 
+Przy zmianie samego tagu użyj obrazu zgodnego z bieżącym Compose. Cofnięcie do obrazu frontendu sprzed L8 wymaga też cofnięcia mapowania portu i ustawień frontendu w Compose, ponieważ starszy Caddy nasłuchuje wewnętrznie na porcie 80.
+
 Deploy wykonują **self-hosted runnery** na maszynach (łączą się z GitHubem wychodząco, więc port 22 zostaje otwarty tylko dla jednego IP). Sekrety (`DATABASE_URL`, `SECRET_KEY`) są przechowywane w GitHubie jako *environment secrets* środowiska `production` (Settings → Environments → production) i dostępne tylko dla jobu `deploy` z gałęzi `main`. Przy każdym wdrożeniu job zapisuje je do `/opt/questlog/tools/.env` (prawa 600), więc `SECRET_KEY` jest zawsze identyczny na obu maszynach. Rotacja: `gh secret set SECRET_KEY --env production`, potem redeploy. Pozostałe wpisy w `.env` (np. `WEB_CONCURRENCY`) zostają nietknięte. Kopii zapasowej `.env` nie robimy – źródłem prawdy są sekrety w GitHubie.
 
 ### Rejestr obrazów (GHCR)

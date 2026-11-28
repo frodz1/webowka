@@ -85,6 +85,11 @@ jobs:
       IMAGE_TAG: ${{ github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Walidacja Compose
+        run: |
+          docker compose -f tools/docker-compose.yml --profile test config -q
+          DATABASE_URL=postgresql://ci@db/questlog?sslmode=require SECRET_KEY=ci-placeholder \
+            docker compose -f tools/docker-compose.cloud.yml config -q
       - run: docker compose -f tools/docker-compose.yml build backend frontend
       - name: Skan obrazów (Trivy)
         run: |
@@ -95,6 +100,20 @@ jobs:
           done
       - run: docker compose -f tools/docker-compose.yml up -d --no-build --wait
       - run: curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/api/health
+      - name: Weryfikacja hardeningu kontenerów (L8)
+        run: |
+          docker compose -f tools/docker-compose.yml exec -T frontend \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          for s in backend frontend; do
+            cid=$(docker compose -f tools/docker-compose.yml ps -q "$s")
+            test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$cid")" = true
+            docker compose -f tools/docker-compose.yml exec -T "$s" awk '
+              /^Uid:/ { nonroot = ($3 != 0) }
+              /^(CapEff|CapPrm|CapBnd):/ && $2 ~ /^0+$/ { zero_caps++ }
+              /^NoNewPrivs:/ { nnp = ($2 == 1) }
+              END { exit !(nonroot && zero_caps == 3 && nnp) }
+            ' /proc/1/status
+          done
       - name: DAST (OWASP ZAP baseline)
         run: |
           mkdir -p zap && cp tools/zap-rules.tsv zap/ && chmod -R 777 zap
@@ -160,7 +179,9 @@ jobs:
           case "$DATABASE_URL$SECRET_KEY" in *\'*) echo "sekret zawiera apostrof"; exit 1;; esac
           umask 077
           f=/opt/questlog/tools/.env
-          { grep -vE '^(DATABASE_URL|SECRET_KEY|IMAGE_TAG)=' "$f" || true
+          { if [ -f "$f" ]; then
+              grep -vE '^(DATABASE_URL|SECRET_KEY|IMAGE_TAG)=' "$f" || [ "$?" -eq 1 ]
+            fi
             printf "DATABASE_URL='%s'\nSECRET_KEY='%s'\nIMAGE_TAG=%s\n" "$DATABASE_URL" "$SECRET_KEY" "$IMAGE_TAG"
           } > "$f.new"
           mv "$f.new" "$f"
