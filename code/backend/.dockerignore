@@ -1,4 +1,15 @@
-__pycache__/
+**/__pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+**/.git
+**/.DS_Store
+**/.env
+**/.env.*
+**/.neon
+**/.netrc
+**/.ssh
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx

@@ -24,3 +24,5 @@ docker compose up -d --build
 ```
 
 Aplikacja: http://localhost:8080 — szczegóły, dane demo i testy w [tools/README.md](tools/README.md).
+
+[Laboratorium L8 — hardening infrastruktury](docs/lab8-hardening.md)
