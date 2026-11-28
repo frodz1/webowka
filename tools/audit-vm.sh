@@ -2,6 +2,17 @@
 # Ręczny audyt VM OCI. Opcjonalny argument to kontekst połączenia dla sshd -T -C.
 export LC_ALL=C
 
+# Uruchom polecenie odczytu i oznacz brak dostępu lub narzędzia.
+show() {
+  label=$1
+  shift
+  if output=$("$@" 2>/dev/null); then
+    printf '%s\n' "$output"
+  else
+    printf '%s: nie sprawdzono\n' "$label"
+  fi
+}
+
 printf '\nSystem i jądro\n'
 if [ -r /etc/os-release ]; then
   . /etc/os-release
@@ -9,7 +20,7 @@ if [ -r /etc/os-release ]; then
 else
   echo 'Dystrybucja: nie sprawdzono (brak odczytu /etc/os-release).'
 fi
-uname -srmo
+show 'Jądro' uname -srmo
 
 printf '\nEfektywna konfiguracja SSH\n'
 if [ -n "${1:-}" ]; then
@@ -19,9 +30,9 @@ else
   echo 'Ustawienia globalne. Reguły Match wymagają podania kontekstu połączenia.'
 fi
 if ssh_config=$(/usr/sbin/sshd -T "$@" 2>/dev/null); then
-  printf '%s\n' "$ssh_config" | awk '
-    /^(port|permitrootlogin|passwordauthentication|kbdinteractiveauthentication|pubkeyauthentication|authenticationmethods|permitemptypasswords) / ||
-    /^(allowusers|allowgroups|denyusers|denygroups) /'
+  printf '%s\n' "$ssh_config" | grep -E \
+    -e '^(port|permitrootlogin|allowusers|allowgroups|denyusers|denygroups) ' \
+    -e '^(passwordauthentication|kbdinteractiveauthentication|pubkeyauthentication|authenticationmethods|permitemptypasswords) '
 else
   echo 'SSH: nie sprawdzono (sshd -T nie działa z tymi uprawnieniami lub parametrami).'
 fi
@@ -33,7 +44,7 @@ case "${ID:-}" in
     for index in /var/lib/apt/lists/*-security_InRelease /var/lib/apt/lists/*-security_Release; do
       [ -r "$index" ] || continue
       security_index=yes
-      stat -c 'Data indeksu bezpieczeństwa: %y' "$index"
+      show 'Data indeksu bezpieczeństwa' stat -c 'Data indeksu bezpieczeństwa: %y' "$index"
     done
     if [ -n "$security_index" ] && upgrades=$(apt-get -s --with-new-pkgs \
         -o Dir::Cache::pkgcache= -o Dir::Cache::srcpkgcache= upgrade 2>/dev/null); then
@@ -51,24 +62,17 @@ esac
 
 printf '\nUprawnienia konfiguracji aplikacji\n'
 env_file=/opt/questlog/tools/.env
-if [ -L "$env_file" ]; then
-  echo '.env: nie sprawdzono (ścieżka jest dowiązaniem symbolicznym).'
-elif [ -f "$env_file" ] && mode=$(stat -c '%a' "$env_file" 2>/dev/null); then
-  stat -c '.env: tryb=%a właściciel=%U grupa=%G' "$env_file"
-  [ "$mode" = 600 ] || echo '.env: oczekiwany tryb 600.'
+if [ -f "$env_file" ] && [ ! -L "$env_file" ]; then
+  show '.env' stat -c '.env: tryb=%a (oczekiwany 600), właściciel=%U, grupa=%G' "$env_file"
 else
-  echo '.env: nie sprawdzono (brak pliku lub dostępu do metadanych).'
+  echo '.env: nie sprawdzono (brak dostępu do zwykłego pliku).'
 fi
 
 printf '\nDostęp do lokalnego Dockera (%s)\n' "$(id -un)"
-getent group docker 2>/dev/null || echo 'Grupa docker: nie sprawdzono (brak wpisu lub dostępu).'
-stat -c 'Gniazdo Docker: tryb=%a właściciel=%U grupa=%G' /var/run/docker.sock 2>/dev/null ||
-  echo 'Gniazdo Docker: nie sprawdzono (brak ścieżki lub dostępu).'
-if version=$(docker --host unix:///var/run/docker.sock version --format '{{.Server.Version}}' 2>/dev/null); then
-  printf 'Dostęp do demona Docker: tak (serwer %s).\n' "$version"
-else
-  echo 'Dostęp do demona Docker: nie sprawdzono (brak dostępu, klienta lub demona).'
-fi
+show 'Grupa docker' getent group docker
+show 'Gniazdo Dockera' stat -c 'Gniazdo Dockera: tryb=%a, właściciel=%U, grupa=%G' /var/run/docker.sock
+show 'Dostęp do Dockera' docker --host unix:///var/run/docker.sock version \
+  --format 'Dostęp do Dockera: tak (serwer {{.Server.Version}})'
 
 printf '\nNasłuch TCP/UDP na hoście\n'
-ss -lntu 2>/dev/null || echo 'Porty: nie sprawdzono (brak ss lub dostępu).'
+show 'Porty' ss -lntu
