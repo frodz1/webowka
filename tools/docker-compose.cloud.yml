@@ -5,22 +5,27 @@
 #   docker compose -f docker-compose.cloud.yml pull && docker compose -f docker-compose.cloud.yml up -d
 name: questlog
 
+# Wspólne ustawienia bezpieczeństwa frontendu i backendu.
+x-app-security: &app-security
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+  logging:
+    driver: json-file
+    options:
+      max-size: "${CONTAINER_LOG_MAX_SIZE:-10m}"
+      max-file: "${CONTAINER_LOG_MAX_FILES:-3}"
+
 services:
   backend:
+    <<: *app-security
     image: ghcr.io/frodz1/questlog-backend:${IMAGE_TAG:?brak IMAGE_TAG w tools/.env (ustawia go pipeline)}
     restart: unless-stopped
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    read_only: true
+    # Pliki kontrolne Gunicorna trafiają do pamięci.
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
     mem_limit: ${BACKEND_MEM_LIMIT:-384m}
     pids_limit: ${BACKEND_PIDS_LIMIT:-128}
-    logging:
-      driver: json-file
-      options:
-        max-size: "${CONTAINER_LOG_MAX_SIZE:-10m}"
-        max-file: "${CONTAINER_LOG_MAX_FILES:-3}"
     environment:
       APP_ENV: production
       PROXY_HOPS: 1
@@ -30,21 +35,15 @@ services:
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
 
   frontend:
+    <<: *app-security
     image: ghcr.io/frodz1/questlog-frontend:${IMAGE_TAG:?brak IMAGE_TAG w tools/.env (ustawia go pipeline)}
     restart: unless-stopped
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    read_only: true
+    # Caddy zapisuje w tych katalogach jako użytkownik 10001.
     tmpfs:
       - /data:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=10001,gid=10001
       - /config:rw,noexec,nosuid,nodev,size=4m,mode=0700,uid=10001,gid=10001
     mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
     pids_limit: ${FRONTEND_PIDS_LIMIT:-128}
-    logging:
-      driver: json-file
-      options:
-        max-size: "${CONTAINER_LOG_MAX_SIZE:-10m}"
-        max-file: "${CONTAINER_LOG_MAX_FILES:-3}"
     depends_on:
       - backend
     ports:
